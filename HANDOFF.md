@@ -39,6 +39,7 @@
   - `canonical.py` Case 5 defect was fixed in `c62c636` (`59/59` tests passing).
   - The preliminary `qwen3.5:4b` run (`EXP-009`) passed the smoke test and `8/40` core scenarios cleanly, then encountered an Ollama service exit at `LLM_SC_009`, leaving `31/40` core scenarios, `10/10` prompt-injection scenarios, and `2/2` sham controls as `NOT_EVALUABLE` (`ConnectionRefusedError`). Do **not** cite `EXP-009` for performance claims.
 - **Backend milestones (2026-11-13):** M0 historical-evidence safety net (`5b86471`) and M1 action audit records (`d164972`) are committed. The design decisions for the new C0/C1/C2 protocol are recorded in [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md); its §7 lists open questions that must be answered before M2/M3.
+- **Backend roadmap:** The approved master plan for completing the backend (M3.1–M8) before any frontend work is [`docs/BACKEND_PLAN.md`](docs/BACKEND_PLAN.md). It sets the milestone order, the schedule for resolving research decisions, the handling of known defects, acceptance criteria and the definition of done.
 
 ---
 
@@ -54,6 +55,7 @@ denial-attribution-research/
 ├── .env.example                # Optional environment variables template (never commit .env)
 ├── docs/
 │   ├── RESEARCH_PLAN.md        # Methodology, threat model, baselines, and Phase 5 plan
+│   ├── BACKEND_PLAN.md         # Approved master backend roadmap (M3.1–M8)
 │   └── EXPERIMENT_LOG.md       # Chronological experiment log (EXP-001 through EXP-008)
 ├── src/
 │   ├── monitor/                # ARM-inspired baseline: models.py, provenance.py, arm_baseline.py
