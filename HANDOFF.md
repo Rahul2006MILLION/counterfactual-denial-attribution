@@ -208,7 +208,7 @@ head -n 20 results/phase5_llm_predictions.csv
 1. Read `HANDOFF.md` (this file) first, then `output.md` for full evidence.
 2. Inspect `src/` and `tests/` before modifying any code.
 3. Run `uv run pytest -v` before and after every change.
-4. Never modify historical `results/phase1_*` through `results/phase4_3_*` files.
+4. Never modify historical `results/phase1_*` through `results/phase5_*` files. This is enforced by `tests/test_m0_historical_regression.py` against the frozen manifest `tests/fixtures/historical_artifacts_sha256.json`; never regenerate that manifest to make a test pass. Write new experiment outputs to a `results/` subdirectory (e.g. `results/cda/<run_id>/`). Do not run historical runners with their default `output_dir`, because they overwrite committed files.
 5. Keep runtime agent/environment inputs strictly separated from ground-truth labels.
 6. Document every new experiment in `docs/EXPERIMENT_LOG.md` and `output.md`.
 7. Commit in meaningful milestones and push only verified work.
