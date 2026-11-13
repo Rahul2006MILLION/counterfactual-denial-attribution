@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.agent.agent import BaseAgent
@@ -25,7 +25,8 @@ from src.monitor.arm_baseline import (
     MonitorConfig,
     ProvenanceMode,
 )
-from src.monitor.models import DecisionVerdict
+from src.monitor.audit import AuditLog
+from src.monitor.models import DecisionVerdict, ExecutionStatus, PolicyDecision
 
 _PROTECTED_SINKS = frozenset(
     {
@@ -46,6 +47,23 @@ def _hash_obj(obj: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
+def _output_digest(output: Any) -> str:
+    """Full SHA-256 of a tool output's canonical JSON (the output itself is not logged)."""
+    payload = json.dumps(output, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _layer_verdicts(decision: PolicyDecision) -> list[dict[str, str]]:
+    layers = decision.evidence.get("layers", [])
+    return [
+        {
+            "layer": str(layer.get("layer_name", "")),
+            "verdict": str(getattr(layer.get("verdict"), "value", layer.get("verdict"))),
+        }
+        for layer in layers
+    ]
+
+
 @dataclass
 class BranchExecutionResult:
     """Complete result of running a single independent agent branch."""
@@ -58,6 +76,7 @@ class BranchExecutionResult:
     termination_reason: str
     agent_overhead_ms: float
     monitor_overhead_ms: float
+    audit_log: AuditLog = field(default_factory=AuditLog)
 
 
 class AgentExecutor:
@@ -101,6 +120,48 @@ class AgentExecutor:
             if not task.allowed_tools or name in task.allowed_tools
         }
 
+        audit_log = AuditLog()
+        session_id = f"{task.task_id}_{branch_name}"
+
+        def _audit(
+            step_idx: int,
+            step_id: str,
+            proposal_tool: str,
+            proposal_args: dict[str, Any],
+            proposed_ids: list[str],
+            accepted_ids: list[str],
+            decision: PolicyDecision,
+            status: ExecutionStatus,
+            feedback: str,
+            data_id: str | None = None,
+            output_digest: str | None = None,
+            error: str | None = None,
+        ) -> None:
+            audit_log.append(
+                record_id=f"audit_{session_id}_{step_idx}",
+                session_id=session_id,
+                branch_name=branch_name,
+                feedback_condition=feedback_condition.value,
+                step_index=step_idx,
+                step_id=step_id,
+                tool_name=proposal_tool,
+                arguments=proposal_args,
+                proposed_input_node_ids=list(proposed_ids),
+                accepted_input_node_ids=list(accepted_ids),
+                is_protected_sink=proposal_tool in _PROTECTED_SINKS,
+                authorization=decision.decision,
+                decision_id=decision.decision_id,
+                deciding_layer=decision.evidence.get("failing_layer"),
+                internal_reason=decision.reason,
+                layer_verdicts=_layer_verdicts(decision),
+                execution_status=status,
+                executed=status == ExecutionStatus.EXECUTED,
+                data_id=data_id,
+                output_digest=output_digest,
+                error=error,
+                agent_visible_feedback=feedback,
+            )
+
         trace_steps: list[TraceStepRecord] = []
         interventions: list[InterventionRecord] = []
         non_denial_outputs: dict[str, Any] = {}
@@ -138,14 +199,19 @@ class AgentExecutor:
                     output, trust, overrides = env.execute_tool(
                         proposal.tool_name, proposal.arguments
                     )
-                except ValueError as exc:
+                except Exception as exc:  # noqa: BLE001 - any tool failure is a recorded outcome
+                    # Authorized but failed: authorization stays ALLOW, execution is TOOL_ERROR.
+                    # (Previously only ValueError was caught; e.g. ZeroDivisionError or
+                    # SyntaxError from calculate() crashed the whole episode.)
+                    # The agent-facing observation is unchanged in M1 (allowed=False).
+                    tool_feedback = f"TOOL_ERROR: {exc}"
                     obs = AgentObservation(
                         step_index=step_idx,
                         tool_name=proposal.tool_name,
                         arguments=proposal.arguments,
                         allowed=False,
                         output=None,
-                        feedback=f"TOOL_ERROR: {exc}",
+                        feedback=tool_feedback,
                         data_id=None,
                     )
                     memory.record(obs)
@@ -155,12 +221,24 @@ class AgentExecutor:
                             tool_name=proposal.tool_name,
                             arguments=proposal.arguments,
                             input_node_ids=list(proposal.input_node_ids),
-                            decision="DENY",
+                            decision=decision.decision.value,
                             reason=f"Tool execution error: {exc}",
                             is_protected_sink=proposal.tool_name in _PROTECTED_SINKS,
                             is_unauthorized_sink=False,
                             executed=False,
                         )
+                    )
+                    _audit(
+                        step_idx,
+                        step_id,
+                        proposal.tool_name,
+                        proposal.arguments,
+                        proposal.input_node_ids,
+                        valid_input_ids,
+                        decision,
+                        ExecutionStatus.TOOL_ERROR,
+                        tool_feedback,
+                        error=f"{type(exc).__name__}: {exc}",
                     )
                     continue
                 data_id = f"d_{step_id}"
@@ -194,6 +272,19 @@ class AgentExecutor:
                     feedback=f"OK: {output}",
                     data_id=data_id,
                 )
+                _audit(
+                    step_idx,
+                    step_id,
+                    proposal.tool_name,
+                    proposal.arguments,
+                    proposal.input_node_ids,
+                    valid_input_ids,
+                    decision,
+                    ExecutionStatus.EXECUTED,
+                    obs.feedback,
+                    data_id=data_id,
+                    output_digest=_output_digest(output),
+                )
             else:
                 denials = monitor.graph.denials
                 rendered_fb = "Action was not executed."
@@ -215,6 +306,18 @@ class AgentExecutor:
                     feedback=rendered_fb,
                     data_id=None,
                 )
+                # Denied: the tool was never invoked (env.execute_tool is unreachable here).
+                _audit(
+                    step_idx,
+                    step_id,
+                    proposal.tool_name,
+                    proposal.arguments,
+                    proposal.input_node_ids,
+                    valid_input_ids,
+                    decision,
+                    ExecutionStatus.NOT_EXECUTED_DENIED,
+                    rendered_fb,
+                )
 
             memory.record(obs)
             trace_steps.append(
@@ -227,7 +330,9 @@ class AgentExecutor:
                     reason=decision.reason,
                     is_protected_sink=proposal.tool_name in _PROTECTED_SINKS,
                     is_unauthorized_sink=False,
-                    executed=True,
+                    # Previously True for every monitored step, including DENIED ones.
+                    # Now means "the tool actually ran" (authorization is in `decision`).
+                    executed=decision.decision == DecisionVerdict.ALLOW,
                 )
             )
 
@@ -252,4 +357,5 @@ class AgentExecutor:
             termination_reason=termination_reason,
             agent_overhead_ms=round(agent_ns / 1_000_000.0, 4),
             monitor_overhead_ms=round(monitor_ns / 1_000_000.0, 4),
+            audit_log=audit_log,
         )
