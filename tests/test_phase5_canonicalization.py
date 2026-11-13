@@ -137,7 +137,7 @@ def test_executor_filters_hallucinated_input_ids_and_unknown_tools() -> None:
 
 def test_ollama_adapter_disabled_by_default_and_reproducible_config() -> None:
     """Verify OllamaAgentAdapter is disabled by default and never falls back to scripts."""
-    adapter = OllamaAgentAdapter(model="qwen3.5:4b", enabled=False)
+    adapter = OllamaAgentAdapter(model="qwen3:4b-4k", enabled=False)
     assert adapter.config_dict()["protocol"] == "structured_json_action"
     with pytest.raises(RuntimeError, match="disabled by default"):
         adapter.propose_next_action(AgentTask(task_id="t", goal="g"), AgentMemory(), {"get_time": "time"})

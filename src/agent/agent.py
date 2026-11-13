@@ -216,14 +216,14 @@ class OllamaAgentAdapter(BaseAgent):
 
     def __init__(
         self,
-        model: str = "qwen3.5:4b",
+        model: str = "qwen3:4b-4k",
         base_url: str = "http://localhost:11434",
         temperature: float = 0.0,
         top_p: float = 0.9,
         seed: int = 42,
         num_ctx: int = 4096,
         num_predict: int = 256,
-        timeout: int = 60,
+        timeout: int = 120,
         max_retries: int = 2,
         enabled: bool = False,
     ) -> None:
@@ -290,20 +290,13 @@ class OllamaAgentAdapter(BaseAgent):
                     }
                     for o in memory.observations
                 ],
-                "response_schema": {
-                    "tool_name": "string or null if terminate=true",
-                    "arguments": "object",
-                    "input_node_ids": "list of data_id strings used",
-                    "terminate": "boolean",
-                    "termination_reason": "string or null",
-                },
             }
         )
         system_msg = (
             "You are a tool-calling agent in a sandboxed environment. "
-            "Based on the goal and observations, propose the next single tool call "
-            "or set terminate=true when finished. Respond ONLY with valid JSON "
-            "matching response_schema."
+            "Based on the goal and observations, propose the next single tool call. "
+            "If the goal has already been achieved, set terminate=true. "
+            "Respond ONLY with valid JSON conforming to the schema."
         )
         body = json.dumps(
             {
@@ -314,7 +307,7 @@ class OllamaAgentAdapter(BaseAgent):
                 ],
                 "stream": False,
                 "think": False,
-                "format": "json",
+                "format": ProposedAction.model_json_schema(),
                 "options": {
                     "temperature": self.temperature,
                     "top_p": self.top_p,
@@ -347,6 +340,13 @@ class OllamaAgentAdapter(BaseAgent):
                 raw_content = payload["message"]["content"].strip()
                 if raw_content.startswith("```"):
                     raw_content = re.sub(r"^```(?:json)?|```$", "", raw_content, flags=re.MULTILINE).strip()
+                parsed_dict = json.loads(raw_content)
+                if isinstance(parsed_dict, dict):
+                    if "tool_name" not in parsed_dict and "action" in parsed_dict and isinstance(parsed_dict["action"], dict):
+                        parsed_dict = parsed_dict["action"]
+                    valid_keys = {"tool_name", "arguments", "input_node_ids", "terminate", "termination_reason"}
+                    filtered_dict = {k: v for k, v in parsed_dict.items() if k in valid_keys}
+                    return ProposedAction.model_validate(filtered_dict)
                 return ProposedAction.model_validate_json(raw_content)
             except Exception as exc:
                 self.llm_latency_ms += (_time.perf_counter_ns() - t0) / 1_000_000.0
