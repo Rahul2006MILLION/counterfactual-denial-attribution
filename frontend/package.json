@@ -1,0 +1,21 @@
+{
+  "name": "cda-presentation-site",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Static presentation website for the Counterfactual Denial Attribution research project.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "capture-demo": "cd .. && uv run python frontend/scripts/capture_demo.py"
+  },
+  "dependencies": {
+    "three": "0.186.0"
+  },
+  "devDependencies": {
+    "@types/three": "0.186.0",
+    "typescript": "5.8.3",
+    "vite": "6.4.3"
+  }
+}
