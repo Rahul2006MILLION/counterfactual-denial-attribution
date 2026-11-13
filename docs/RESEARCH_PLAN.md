@@ -5,6 +5,8 @@
 > **2026-11-13 update:** The next protocol uses three conditions (C0 outcome-obscured, C1 generic denial, C2 informative denial) and five attribution outcomes (`EVENT_SENSITIVE`, `REASON_SENSITIVE`, `BOTH_EVENT_AND_REASON_SENSITIVE`, `DENIAL_INDEPENDENT`, `INCONCLUSIVE`). The approved design decisions and open questions are recorded in [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md); they supersede this plan's two-branch `ACTUAL`/`NEUTRALIZED` description for new work only. Historical experiments (EXP-001..EXP-009) are unchanged.
 >
 > **2026-11-13 M2 approvals:** Namespace kinds, fact-variant scenarios, search/listing result mediation (including fact-variant search invariance), and the C2 reason catalogue were approved; see [`DESIGN_DECISIONS.md` §9](DESIGN_DECISIONS.md#9-approved-m2-decisions-a3-a5-a12-and-additional-requirements) and §19 below.
+>
+> **2026-11-13 backend roadmap:** The approved implementation plan for the C0/C1/C2 protocol backend (M3.1–M8) is [`BACKEND_PLAN.md`](BACKEND_PLAN.md). It includes the pre-registration requirement for the A7 decision rule and the gate for the live pilot.
 
 ---
 
