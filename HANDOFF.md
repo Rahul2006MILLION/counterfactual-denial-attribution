@@ -88,6 +88,8 @@ flowchart LR
 - **`src/monitor/`:**
   - `models.py`: `TrustLevel` `IntEnum` (`TOOL_DESC < TOOL_UNTRUSTED < TOOL_TRUSTED < USER_INPUT < SYS_INSTR`), `AgentEvent`, `DenialEvent`, `ProvenanceNode`, `ProvenanceEdge`, `PolicyDecision`, `ExecutionStatus`, `ActionAuditRecord` (M1).
   - `audit.py` (M1): hash-chained `AuditLog`, `verify_chain` (see [`docs/AUDIT_SCHEMA.md`](docs/AUDIT_SCHEMA.md)).
+  - `resources.py` (M2, opt-in): hidden `ResourceRegistry`, `ProtectedNamespace` (concealing / classification-dependent), `ResourcePolicy`. Used by `ResourcePolicyLayer` and `ARMMonitor.mediate_tool_output` in `arm_baseline.py`.
+  - `reason_catalogue.py` (M2): versioned C2 reason catalogue (draft wording) mapping every DENY rule ID to one category.
   - `provenance.py`: NetworkX `ProvenanceGraph` (`Call`, `Data`, `DataField`, `DeniedAction` nodes; `DIRECT_OUTPUT`, `INPUT_TO`, `FIELD_OF`, `COUNTERFACTUAL` edges; `min_trust`, `counterfactual_chains`).
   - `arm_baseline.py`: `ARMMonitor` with `L1` (`HardBoundariesLayer`), `L2` (`FlatProvenanceLayer`), `L2G` (`GraphProvenanceLayer`), `L3` (`SchemaDerivedLayer`), `L4` (`ManualPolicyLayer`), and `CounterfactualStrategy` (`NONE`, `IMMEDIATE_NEXT`, `ALL_SUBSEQUENT`, `SINK_SCOPED`).
 - **`src/attribution/`:**

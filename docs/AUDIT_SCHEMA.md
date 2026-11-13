@@ -35,6 +35,19 @@ Only `EXECUTED` records may carry `data_id` / `output_digest`.
 | Agent view | `agent_visible_feedback` | Exactly what the agent was shown for this action. It may differ from `internal_reason` (e.g. under `NEUTRALIZED`). |
 | Tamper evidence | `prev_hash`, `record_hash` | See below. |
 
+### M2 additions (additive; all evaluator-only)
+
+| Field | Set when | Description |
+|---|---|---|
+| `deny_rule` | `authorization=DENY` | Rule ID of the denying layer (e.g. `HB-2`, `RP-CONCEAL`, `L4-TOOL`), taken from `LayerResult.evidence["rule"]`. |
+| `reason_category` | `authorization=DENY` | The rule's single category in the C2 reason catalogue (`src/monitor/reason_catalogue.py`). |
+| `reason_catalogue_version` | `authorization=DENY` | Catalogue version, currently `cda-c2-reasons-v0-draft`. |
+| `raw_output_digest` | `EXECUTED` and mediation ran | SHA-256 of the tool's raw output before monitor mediation. `output_digest` is always the digest of what the agent actually received. |
+| `redaction_applied` | `EXECUTED` | `true` if monitor result mediation ran on this output (listing tools under a `ResourcePolicy`). |
+| `redaction_count` | `EXECUTED` | Number of entries removed from the output. Never shown to the agent. |
+
+Validation: the three reason fields are set together or not at all, and only on DENY (the executor always sets them on DENY). Mediation fields only appear on `EXECUTED`; `redaction_count > 0` requires `redaction_applied`, and `redaction_applied` requires `raw_output_digest`.
+
 ### Raw outputs are not stored
 
 Tool outputs are recorded only as `output_digest`, so the audit trail is not a second
