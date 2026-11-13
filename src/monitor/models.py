@@ -256,13 +256,22 @@ class ActionAuditRecord(BaseModel):
     deciding_layer: str | None = None
     internal_reason: str = Field(..., min_length=1)
     layer_verdicts: list[dict[str, str]] = Field(default_factory=list)
+    # M2: catalogue mapping of the denying rule (None for ALLOW).
+    deny_rule: str | None = None
+    reason_category: str | None = None
+    reason_catalogue_version: str | None = None
 
     # Execution (what actually happened)
     execution_status: ExecutionStatus
     executed: bool
     data_id: str | None = None
+    # Digest of the output the agent received (after any monitor mediation).
     output_digest: str | None = None
     error: str | None = None
+    # M2 evaluator-only mediation metadata (never shown to the agent).
+    raw_output_digest: str | None = None
+    redaction_applied: bool = False
+    redaction_count: int = Field(default=0, ge=0)
 
     # What the agent was shown
     agent_visible_feedback: str = Field(..., min_length=1)
@@ -288,4 +297,18 @@ class ActionAuditRecord(BaseModel):
             raise ValueError("Only EXECUTED actions may carry a data_id or output_digest.")
         if self.authorization == DecisionVerdict.DENY and not self.deciding_layer:
             raise ValueError("A DENIED action must name the deciding policy layer.")
+        reason_fields = (self.deny_rule, self.reason_category, self.reason_catalogue_version)
+        if self.authorization == DecisionVerdict.DENY and reason_fields != (None, None, None):
+            if not all(reason_fields):
+                raise ValueError("deny_rule, reason_category and reason_catalogue_version are set together.")
+        if self.authorization == DecisionVerdict.ALLOW and any(reason_fields):
+            raise ValueError("An ALLOWED action carries no deny rule or reason category.")
+        if status != ExecutionStatus.EXECUTED and (
+            self.raw_output_digest or self.redaction_applied or self.redaction_count
+        ):
+            raise ValueError("Only EXECUTED actions may carry output mediation metadata.")
+        if self.redaction_count and not self.redaction_applied:
+            raise ValueError("redaction_count > 0 requires redaction_applied=True.")
+        if self.redaction_applied and not self.raw_output_digest:
+            raise ValueError("Mediated outputs must record raw_output_digest.")
         return self

@@ -27,6 +27,8 @@ from src.monitor.arm_baseline import (
 )
 from src.monitor.audit import AuditLog
 from src.monitor.models import DecisionVerdict, ExecutionStatus, PolicyDecision
+from src.monitor.reason_catalogue import CATALOGUE_VERSION, category_for_rule, deny_rule_id
+from src.monitor.resources import ResourcePolicy
 
 _PROTECTED_SINKS = frozenset(
     {
@@ -96,8 +98,13 @@ class AgentExecutor:
         branch_name: str,
         feedback_condition: FeedbackCondition,
         monitor_config: MonitorConfig | None = None,
+        resource_policy: ResourcePolicy | None = None,
     ) -> BranchExecutionResult:
-        """Execute a single independent branch with isolated state and memory."""
+        """Execute a single independent branch with isolated state and memory.
+
+        ``resource_policy`` (M2, opt-in) enables the hidden-resource policy layer
+        and listing-output mediation. When omitted, behaviour is unchanged.
+        """
         env = SandboxedEnvironment(initial_env_state)
         memory = AgentMemory()
         cfg = monitor_config or MonitorConfig(
@@ -112,6 +119,7 @@ class AgentExecutor:
             session_id=f"{task.task_id}_{branch_name}",
             capability_token=token,
             config=cfg,
+            resource_policy=resource_policy,
         )
 
         available_tools = {
@@ -136,7 +144,12 @@ class AgentExecutor:
             data_id: str | None = None,
             output_digest: str | None = None,
             error: str | None = None,
+            raw_output_digest: str | None = None,
+            redaction_applied: bool = False,
+            redaction_count: int = 0,
         ) -> None:
+            rule = deny_rule_id(decision)
+            category = category_for_rule(rule).value if rule is not None else None
             audit_log.append(
                 record_id=f"audit_{session_id}_{step_idx}",
                 session_id=session_id,
@@ -154,11 +167,17 @@ class AgentExecutor:
                 deciding_layer=decision.evidence.get("failing_layer"),
                 internal_reason=decision.reason,
                 layer_verdicts=_layer_verdicts(decision),
+                deny_rule=rule,
+                reason_category=category,
+                reason_catalogue_version=CATALOGUE_VERSION if rule is not None else None,
                 execution_status=status,
                 executed=status == ExecutionStatus.EXECUTED,
                 data_id=data_id,
                 output_digest=output_digest,
                 error=error,
+                raw_output_digest=raw_output_digest,
+                redaction_applied=redaction_applied,
+                redaction_count=redaction_count,
                 agent_visible_feedback=feedback,
             )
 
@@ -241,6 +260,15 @@ class AgentExecutor:
                         error=f"{type(exc).__name__}: {exc}",
                     )
                     continue
+                # M2 result mediation (no-op without a ResourcePolicy). Everything
+                # downstream uses the agent-visible output; only digests of the raw
+                # output reach the (evaluator-only) audit record.
+                t_med = time.perf_counter_ns()
+                mediation = monitor.mediate_tool_output(proposal.tool_name, output)
+                monitor_ns += time.perf_counter_ns() - t_med
+                raw_output = output
+                output = mediation.visible_output
+
                 data_id = f"d_{step_id}"
                 t_m1 = time.perf_counter_ns()
                 monitor.record_tool_result(
@@ -284,6 +312,9 @@ class AgentExecutor:
                     obs.feedback,
                     data_id=data_id,
                     output_digest=_output_digest(output),
+                    raw_output_digest=_output_digest(raw_output) if mediation.applied else None,
+                    redaction_applied=mediation.applied,
+                    redaction_count=mediation.redacted_count,
                 )
             else:
                 denials = monitor.graph.denials

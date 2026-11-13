@@ -36,6 +36,7 @@ from src.monitor.models import (
     utc_now,
 )
 from src.monitor.provenance import ProvenanceGraph
+from src.monitor.resources import NamespaceKind, ResourcePolicy, normalize_path
 
 
 class ProvenanceMode(str, Enum):
@@ -267,6 +268,7 @@ class FlatProvenanceLayer:
                                 f"'{entry['tool_name']}'."
                             ),
                             evidence={
+                                "rule": "L2-FLAT",
                                 "matched_tool": entry["tool_name"],
                                 "trust_level": entry["object_trust"].label,
                             },
@@ -300,6 +302,7 @@ class GraphProvenanceLayer:
                     f"({config.trust_threshold.label})."
                 ),
                 evidence={
+                    "rule": "L2G-TRUST",
                     "min_trust": call_trust.label,
                     "threshold": config.trust_threshold.label,
                     "ancestors": graph.get_ancestors(event.event_id),
@@ -312,7 +315,7 @@ class GraphProvenanceLayer:
                 layer_name="L2G:GraphProvenance",
                 verdict=LayerVerdict.DENY,
                 reason="Causality laundering detected via counterfactual edge.",
-                evidence={"counterfactual_chains": cf_chains},
+                evidence={"rule": "L2G-COUNTERFACTUAL", "counterfactual_chains": cf_chains},
             )
 
         return LayerResult(
@@ -401,7 +404,7 @@ class ManualPolicyLayer:
                 layer_name="L4:ManualPolicy",
                 verdict=LayerVerdict.DENY,
                 reason=f"Tool '{event.tool_name}' is not permitted by capability token.",
-                evidence={"tool": event.tool_name},
+                evidence={"rule": "L4-TOOL", "tool": event.tool_name},
             )
 
         budget = token.tool_budgets.get(event.tool_name)
@@ -412,7 +415,7 @@ class ManualPolicyLayer:
                     layer_name="L4:ManualPolicy",
                     verdict=LayerVerdict.DENY,
                     reason=f"Tool '{event.tool_name}' exceeded capability budget ({budget}).",
-                    evidence={"tool": event.tool_name, "budget": budget},
+                    evidence={"rule": "L4-BUDGET", "tool": event.tool_name, "budget": budget},
                 )
 
         blocked_vals = token.blocked_arguments.get(event.tool_name, frozenset())
@@ -423,7 +426,7 @@ class ManualPolicyLayer:
                         layer_name="L4:ManualPolicy",
                         verdict=LayerVerdict.DENY,
                         reason=f"Argument '{key}' matched manual blocklist entry.",
-                        evidence={"argument": key, "blocked": blocked},
+                        evidence={"rule": "L4-BLOCKLIST", "argument": key, "blocked": blocked},
                     )
 
         return LayerResult(
@@ -431,6 +434,65 @@ class ManualPolicyLayer:
             verdict=LayerVerdict.PASS,
             reason="Passed manual policy checks.",
         )
+
+
+class ResourcePolicyLayer:
+    """Layer LR (M2, opt-in): namespace and hidden-classification resource policy.
+
+    Runs only when ``ARMMonitor`` is given a ``ResourcePolicy``. Internal reason
+    strings are fixed text that never names the namespace kind, classification, or
+    path, because historical ``ACTUAL`` feedback renders internal reasons verbatim to
+    the agent. Evaluator-only details (namespace, existence, classification) go in
+    ``evidence``, which is never shown to the agent.
+    """
+
+    # No rule IDs in reason text: the ID would reveal the namespace kind (an
+    # evaluator-only label). Rule IDs live in ``evidence["rule"]``.
+    CONCEAL_REASON = "Request targets a restricted location."
+    CLASSIFICATION_REASON = "Request is not permitted by the resource access policy."
+
+    def evaluate(self, event: AgentEvent, policy: ResourcePolicy) -> LayerResult:
+        for raw_path in policy.requested_resource_paths(event.tool_name, event.arguments):
+            ns = policy.registry.namespace_for(raw_path)
+            if ns is None:
+                continue
+            resource = policy.registry.resource_at(raw_path)
+            evaluator_evidence = {
+                "namespace_id": ns.namespace_id,
+                "namespace_kind": ns.kind.value,
+                "normalized_path": normalize_path(raw_path),
+                "target_exists": resource is not None,
+                "target_classification": resource.classification.value if resource else None,
+            }
+            if ns.kind == NamespaceKind.CONCEALING:
+                # Decision depends only on the request path, never on existence.
+                return LayerResult(
+                    layer_name="LR:ResourcePolicy",
+                    verdict=LayerVerdict.DENY,
+                    reason=self.CONCEAL_REASON,
+                    evidence={"rule": "RP-CONCEAL", **evaluator_evidence},
+                )
+            if resource is not None and resource.classification in ns.denied_classifications:
+                return LayerResult(
+                    layer_name="LR:ResourcePolicy",
+                    verdict=LayerVerdict.DENY,
+                    reason=self.CLASSIFICATION_REASON,
+                    evidence={"rule": "RP-CLASSIFICATION", **evaluator_evidence},
+                )
+        return LayerResult(
+            layer_name="LR:ResourcePolicy",
+            verdict=LayerVerdict.PASS,
+            reason="Passed resource policy checks.",
+        )
+
+
+@dataclass(frozen=True)
+class MediationOutcome:
+    """Result of monitor output mediation (evaluator-side; never shown to the agent)."""
+
+    visible_output: Any
+    redacted_count: int
+    applied: bool
 
 
 class ARMMonitor:
@@ -442,8 +504,11 @@ class ARMMonitor:
         capability_token: CapabilityToken,
         config: MonitorConfig | None = None,
         tool_schemas: dict[str, dict[str, Any]] | None = None,
+        resource_policy: ResourcePolicy | None = None,
     ) -> None:
         self.config = config or MonitorConfig()
+        self.resource_policy = resource_policy
+        self._lr = ResourcePolicyLayer()
         self.graph = ProvenanceGraph()
         self.context = EvaluationContext(
             session_id=session_id,
@@ -504,6 +569,12 @@ class ARMMonitor:
         layer_results.append(l1_res)
         if l1_res.verdict == LayerVerdict.DENY:
             return self._finalize_denial(event, l1_res, layer_results, ts)
+
+        if self.resource_policy is not None:
+            lr_res = self._lr.evaluate(event, self.resource_policy)
+            layer_results.append(lr_res)
+            if lr_res.verdict == LayerVerdict.DENY:
+                return self._finalize_denial(event, lr_res, layer_results, ts)
 
         if self.config.provenance_mode == ProvenanceMode.FLAT_L2:
             l2_res = self._l2.evaluate(event, self.context, self.config)
@@ -573,6 +644,29 @@ class ARMMonitor:
                 "object_trust": default_trust,
                 "serialized_result": serialized,
             }
+        )
+
+    def mediate_tool_output(self, tool_name: str, output: Any) -> MediationOutcome:
+        """Remove protected resources from listing-tool output (M2, opt-in).
+
+        Applies only when a ``ResourcePolicy`` is configured and ``tool_name`` is a
+        listing tool returning a list of paths. Removed entries leave no trace in
+        the visible output: no placeholders, markers, or counts. Because listing
+        tools report matches as paths, removing by path also removes resources
+        that matched the query through their content.
+        """
+        policy = self.resource_policy
+        if policy is None or tool_name not in policy.listing_tools or not isinstance(output, list):
+            return MediationOutcome(visible_output=output, redacted_count=0, applied=False)
+        visible = [
+            item
+            for item in output
+            if not (isinstance(item, str) and policy.is_excluded_from_listings(item))
+        ]
+        return MediationOutcome(
+            visible_output=visible,
+            redacted_count=len(output) - len(visible),
+            applied=True,
         )
 
     def _extract_target_tokens(self, arguments: dict[str, Any]) -> set[str]:
