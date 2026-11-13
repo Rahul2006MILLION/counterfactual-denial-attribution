@@ -38,6 +38,7 @@
 - **Phase 5 Status:** **Scaffolding & partial raw records published — FULL LLM EVALUATION INCOMPLETE.**
   - `canonical.py` Case 5 defect was fixed in `c62c636` (`59/59` tests passing).
   - The preliminary `qwen3.5:4b` run (`EXP-009`) passed the smoke test and `8/40` core scenarios cleanly, then encountered an Ollama service exit at `LLM_SC_009`, leaving `31/40` core scenarios, `10/10` prompt-injection scenarios, and `2/2` sham controls as `NOT_EVALUABLE` (`ConnectionRefusedError`). Do **not** cite `EXP-009` for performance claims.
+- **Backend milestones (2026-11-13):** M0 historical-evidence safety net (`5b86471`) and M1 action audit records (`d164972`) are committed. The design decisions for the new C0/C1/C2 protocol are recorded in [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md); its §7 lists open questions that must be answered before M2/M3.
 
 ---
 

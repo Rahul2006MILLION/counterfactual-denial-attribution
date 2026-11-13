@@ -1,6 +1,8 @@
 # Research Plan: Denial-Specific Causal Attribution in Tool-Calling LLM Agents
 
 > **Document Status:** Living research specification (Phase 0). All hypotheses and proposed mechanisms are unverified until tested against deterministic and LLM-in-the-loop baselines.
+>
+> **2026-11-13 update:** The next protocol uses three conditions (C0 outcome-obscured, C1 generic denial, C2 informative denial) and five attribution outcomes (`EVENT_SENSITIVE`, `REASON_SENSITIVE`, `BOTH_EVENT_AND_REASON_SENSITIVE`, `DENIAL_INDEPENDENT`, `INCONCLUSIVE`). The approved design decisions and open questions are recorded in [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md); they supersede this plan's two-branch `ACTUAL`/`NEUTRALIZED` description for new work only. Historical experiments (EXP-001..EXP-009) are unchanged.
 
 ---
 
