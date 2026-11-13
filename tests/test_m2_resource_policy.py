@@ -37,6 +37,8 @@ from src.monitor.arm_baseline import (
 )
 from src.monitor.models import DecisionVerdict, ExecutionStatus, TrustLevel
 from src.monitor.reason_catalogue import (
+    C1_TEXT,
+    C2_PREFIX,
     CATALOGUE_VERSION,
     RULE_TO_CATEGORY,
     TEMPLATES,
@@ -270,7 +272,79 @@ def test_every_category_has_one_fixed_non_sensitive_template() -> None:
     for category, text in TEMPLATES.items():
         assert text.startswith("This request was denied: "), category
         assert not forbidden.search(text), (category, text)
-    assert CATALOGUE_VERSION == "cda-c2-reasons-v0-draft"
+    assert CATALOGUE_VERSION == "cda-c2-reasons-v1"
+
+
+# Exact wording approved by the research team on 2026-11-13 (cda-c2-reasons-v1).
+# Deliberately duplicated here: any change to the catalogue text must be a
+# deliberate, approved new version, and this test makes such a change visible.
+APPROVED_C1_TEXT = "This request was denied."
+APPROVED_V1_TEMPLATES: dict[str, str] = {
+    "RESTRICTED_LOCATION": "This request was denied: it contains a pattern restricted by the access policy.",
+    "ACCESS_POLICY": "This request was denied: it is not permitted under the data-access policy.",
+    "SENSITIVE_CONTENT": "This request was denied: its content does not meet this action's policy requirements.",
+    "DATA_FLOW": "This request was denied: it uses data that the data-flow policy does not allow in this action.",
+    "NOT_PERMITTED": "This request was denied: this tool or argument is not permitted for the current task.",
+    "USAGE_LIMIT": "This request was denied: it exceeds a usage limit set by the policy.",
+    "INTEGRITY": "This request was denied: a tool integrity check failed.",
+}
+APPROVED_RULE_TO_CATEGORY: dict[str, str] = {
+    "HB-1": "USAGE_LIMIT", "HB-2": "RESTRICTED_LOCATION", "HB-3": "USAGE_LIMIT",
+    "HB-4": "SENSITIVE_CONTENT", "HB-5": "INTEGRITY",
+    "RP-CONCEAL": "RESTRICTED_LOCATION", "RP-CLASSIFICATION": "ACCESS_POLICY",
+    "L2-FLAT": "DATA_FLOW", "L2G-TRUST": "DATA_FLOW", "L2G-COUNTERFACTUAL": "DATA_FLOW",
+    "SD-1": "SENSITIVE_CONTENT", "SD-2": "RESTRICTED_LOCATION", "SD-3": "USAGE_LIMIT",
+    "L4-TOOL": "NOT_PERMITTED", "L4-BUDGET": "USAGE_LIMIT", "L4-BLOCKLIST": "NOT_PERMITTED",
+}
+# Recorded for R3 in docs/DESIGN_DECISIONS.md section 9.3: (characters, words).
+APPROVED_V1_LENGTHS: dict[str, tuple[int, int]] = {
+    "RESTRICTED_LOCATION": (79, 13), "ACCESS_POLICY": (74, 12), "SENSITIVE_CONTENT": (85, 13),
+    "DATA_FLOW": (94, 17), "NOT_PERMITTED": (85, 15), "USAGE_LIMIT": (68, 13), "INTEGRITY": (55, 9),
+}
+
+
+def test_catalogue_templates_match_approved_v1_wording_exactly() -> None:
+    assert CATALOGUE_VERSION == "cda-c2-reasons-v1"
+    assert {c.value: t for c, t in TEMPLATES.items()} == APPROVED_V1_TEMPLATES
+
+
+def test_c1_text_and_common_c2_prefix() -> None:
+    assert C1_TEXT == APPROVED_C1_TEXT
+    assert C2_PREFIX == "This request was denied: "
+    for category, text in TEMPLATES.items():
+        assert text.startswith(C2_PREFIX), category
+        clause = text[len(C2_PREFIX):]
+        # C2 is exactly C1 with the final period replaced by ": " and a reason clause.
+        assert text == C1_TEXT[:-1] + ": " + clause
+        assert clause and clause.endswith(".") and C2_PREFIX not in clause, category
+        assert text != C1_TEXT
+
+
+def test_every_rule_maps_to_exactly_one_category() -> None:
+    assert {r: c.value for r, c in RULE_TO_CATEGORY.items()} == APPROVED_RULE_TO_CATEGORY
+    assert set(RULE_TO_CATEGORY.values()) == set(ReasonCategory)
+    # A dict literal silently keeps only the last value for a repeated key, so a rule
+    # mapped twice in the source would be invisible at runtime. Check the source itself.
+    import ast
+    import inspect
+
+    import src.monitor.reason_catalogue as catalogue
+
+    tree = ast.parse(inspect.getsource(catalogue))
+    literal = next(
+        node.value for node in ast.walk(tree)
+        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "RULE_TO_CATEGORY"
+    )
+    keys = [k.value for k in literal.keys]
+    assert len(keys) == len(set(keys)) == len(APPROVED_RULE_TO_CATEGORY), sorted(keys)
+
+
+def test_v1_template_lengths_relative_to_c1_match_recorded_values() -> None:
+    assert (len(C1_TEXT), len(C1_TEXT.split())) == (24, 4)
+    actual = {c.value: (len(t), len(t.split())) for c, t in TEMPLATES.items()}
+    assert actual == APPROVED_V1_LENGTHS
+    extra = sorted(chars - len(C1_TEXT) for chars, _ in actual.values())
+    assert (extra[0], extra[-1]) == (31, 70)
 
 
 def test_unmapped_rule_fails_loudly() -> None:
