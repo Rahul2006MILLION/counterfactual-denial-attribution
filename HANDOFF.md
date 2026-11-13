@@ -85,7 +85,8 @@ flowchart LR
 
 ### Key Modules & Responsibilities
 - **`src/monitor/`:**
-  - `models.py`: `TrustLevel` `IntEnum` (`TOOL_DESC < TOOL_UNTRUSTED < TOOL_TRUSTED < USER_INPUT < SYS_INSTR`), `AgentEvent`, `DenialEvent`, `ProvenanceNode`, `ProvenanceEdge`, `PolicyDecision`.
+  - `models.py`: `TrustLevel` `IntEnum` (`TOOL_DESC < TOOL_UNTRUSTED < TOOL_TRUSTED < USER_INPUT < SYS_INSTR`), `AgentEvent`, `DenialEvent`, `ProvenanceNode`, `ProvenanceEdge`, `PolicyDecision`, `ExecutionStatus`, `ActionAuditRecord` (M1).
+  - `audit.py` (M1): hash-chained `AuditLog`, `verify_chain` (see [`docs/AUDIT_SCHEMA.md`](docs/AUDIT_SCHEMA.md)).
   - `provenance.py`: NetworkX `ProvenanceGraph` (`Call`, `Data`, `DataField`, `DeniedAction` nodes; `DIRECT_OUTPUT`, `INPUT_TO`, `FIELD_OF`, `COUNTERFACTUAL` edges; `min_trust`, `counterfactual_chains`).
   - `arm_baseline.py`: `ARMMonitor` with `L1` (`HardBoundariesLayer`), `L2` (`FlatProvenanceLayer`), `L2G` (`GraphProvenanceLayer`), `L3` (`SchemaDerivedLayer`), `L4` (`ManualPolicyLayer`), and `CounterfactualStrategy` (`NONE`, `IMMEDIATE_NEXT`, `ALL_SUBSEQUENT`, `SINK_SCOPED`).
 - **`src/attribution/`:**
@@ -99,7 +100,7 @@ flowchart LR
   - `state.py`: `AgentTask`, `AgentObservation`, `ProposedAction` (`extra="forbid"`), isolated `AgentMemory`.
   - `environment.py`: `SandboxedEnvironment` (all tools simulated in-memory; zero real side effects).
   - `agent.py` & `policies.py`: `ReactivePolicyAgent`, `ConservativeStoppingAgent`, `IndependentRecoveryAgent`, `DenialInsensitiveAgent`, `MemoryMediatedAgent`, `SourcePrioritizationAgent`, and `OllamaAgentAdapter` (disabled by default).
-  - `executor.py`: `AgentExecutor` mediating every tool call through `ARMMonitor`.
+  - `executor.py`: `AgentExecutor` mediating every tool call through `ARMMonitor`; emits one `ActionAuditRecord` per proposed action (`BranchExecutionResult.audit_log`), recording authorization and execution separately (M1).
 
 ---
 
