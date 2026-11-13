@@ -235,7 +235,7 @@ export function initHero(canvas: HTMLCanvasElement, hero: HTMLElement, onReady: 
         if (L.mirror) lx = -lx;
         // rotate in screen space (y down)
         const sx = L.tipX * W + lx * cos - ly * sin;
-        const sy = L.tipY * H + lx * sin + ly * cos;
+        const sy = (L.tipY + sceneShift) * H + lx * sin + ly * cos;
         pos.setXYZ(i, sx, H - sy, 0); // ortho camera has y up
         size.setX(i, step * k * (0.22 + 0.78 * Math.pow(lum.getX(i), 0.8)));
       });
@@ -245,19 +245,37 @@ export function initHero(canvas: HTMLCanvasElement, hero: HTMLElement, onReady: 
     }
   }
 
+  // Vertical offset (fraction of hero height) applied to the hands when the core has
+  // to move down to clear the hero text.
+  let sceneShift = 0;
+
+  /** Bottom edge of the hero call-to-action row, as a fraction of hero height. */
+  function textBottomFrac(): number {
+    const content = hero.querySelector<HTMLElement>("[data-hero-content]");
+    const actions = hero.querySelector<HTMLElement>(".hero__actions");
+    if (!content || !actions) return 0;
+    // offsetTop ignores the intro/parallax transforms, so this is the settled layout.
+    return (content.offsetTop + actions.offsetTop + actions.offsetHeight) / H;
+  }
+
   function placeCore(): void {
     const narrow = isNarrow(W);
     const portrait = isPortrait(W, H);
-    corePos.y = narrow ? 0.72 : portrait ? 0.62 : 0.655;
-    const dist = camera.position.z;
-    const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist;
-    const ndcY = -(corePos.y - 0.5) * 2;
-    pivot.position.set(0, ndcY * halfH, 0);
     const s = narrow
       ? Math.min(0.9, (W / H) * 1.2) * 0.85
       : portrait
         ? 0.85
         : Math.min(0.95, Math.max(0.7, W / H / 1.85));
+    const base = narrow ? 0.72 : portrait ? 0.62 : 0.655;
+    // Approximate on-screen radius of the object as a fraction of hero height.
+    const radiusFrac = 0.16 * s;
+    const clearY = textBottomFrac() + radiusFrac + 0.035;
+    corePos.y = Math.min(narrow ? 0.84 : 0.8, Math.max(base, clearY));
+    sceneShift = corePos.y - base;
+    const dist = camera.position.z;
+    const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * dist;
+    const ndcY = -(corePos.y - 0.5) * 2;
+    pivot.position.set(0, ndcY * halfH, 0);
     pivot.userData.baseScale = s;
     floor.position.set(0, pivot.position.y - 1.9 * s, -0.5);
   }
@@ -419,6 +437,8 @@ export function initHero(canvas: HTMLCanvasElement, hero: HTMLElement, onReady: 
   };
 
   resize();
+  // Web fonts change the hero text height; re-measure once they are in.
+  void document.fonts?.ready.then(() => resize());
   let rt = 0;
   window.addEventListener("resize", () => {
     cancelAnimationFrame(rt);
