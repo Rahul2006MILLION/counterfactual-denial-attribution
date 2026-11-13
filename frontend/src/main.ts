@@ -11,6 +11,7 @@ import {
   initStack,
 } from "./fx/interactions";
 import { initDemo } from "./sections/demo";
+import { initAgent, initModes } from "./sections/agent";
 
 const root = document.documentElement;
 const ready = () => root.classList.add("is-ready");
@@ -24,6 +25,8 @@ initHeroParallax();
 initCursor();
 initMagnetic();
 initDemo();
+initModes();
+initAgent();
 
 // Load the WebGL hero as its own chunk so the page is interactive immediately.
 const canvas = document.querySelector<HTMLCanvasElement>("[data-hero-canvas]");

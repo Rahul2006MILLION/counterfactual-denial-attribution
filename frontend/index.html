@@ -293,14 +293,99 @@
       <section class="section demo" id="demo" aria-labelledby="demo-title">
         <div class="container">
           <p class="eyebrow" data-reveal><span>04</span> Live demonstration</p>
-          <h2 class="display" id="demo-title" data-reveal style="--d: 1">See real monitor decisions.</h2>
+          <h2 class="display" id="demo-title" data-reveal style="--d: 1">Run the live agent.</h2>
           <p class="lede" data-reveal style="--d: 2">
-            Below is <strong>recorded output</strong> from the project's Python terminal demo. It runs the real executor,
-            monitor and sandbox with a deterministic scripted agent. It is <strong>not an LLM</strong>, and nothing here
-            executes in your browser.
+            Upload a document and describe the task in your own words. A <strong>local Qwen model</strong> running in
+            Ollama plans structured tool calls; every call passes through the project's security monitor before it can
+            run, and sensitive actions wait for your approval. Everything below is streamed from the backend as it
+            happens.
           </p>
 
-          <div class="terminal" data-reveal style="--d: 3" data-terminal>
+          <div class="modes" role="tablist" aria-label="Demo mode" data-reveal style="--d: 3">
+            <button class="modes__tab" role="tab" id="mode-live" aria-controls="panel-live" aria-selected="true" data-mode="live">
+              <i class="modes__dot modes__dot--live" aria-hidden="true"></i>Live agent
+            </button>
+            <button class="modes__tab" role="tab" id="mode-recorded" aria-controls="panel-recorded" aria-selected="false" tabindex="-1" data-mode="recorded">
+              Recorded replay
+            </button>
+          </div>
+
+          <!-- LIVE AGENT ---------------------------------------------------- -->
+          <div class="agent" id="panel-live" role="tabpanel" aria-labelledby="mode-live" data-agent data-reveal style="--d: 3">
+            <div class="agent__bar">
+              <span class="terminal__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="agent__badge" data-agent-mode>Checking backend…</span>
+              <span class="agent__status" data-agent-ollama><i class="sdot" aria-hidden="true"></i><span>Ollama: checking</span></span>
+              <label class="agent__model">
+                <span>Model</span>
+                <select data-agent-model disabled aria-label="Ollama model"><option>detecting…</option></select>
+              </label>
+            </div>
+
+            <div class="agent__offline" data-agent-offline hidden>
+              <p><strong>The live backend is not reachable.</strong> Nothing is simulated in its place.</p>
+              <p>Start it from the repository root, then reload this page:</p>
+              <code>uv run uvicorn src.live.api:app --port 8000</code>
+              <p class="agent__offline-note" data-agent-offline-detail></p>
+            </div>
+
+            <div class="agent__grid">
+              <form class="agent__controls" data-agent-form>
+                <label class="drop" data-drop>
+                  <input type="file" multiple data-agent-file
+                    accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.java,.c,.h,.cpp,.cs,.go,.rs,.rb,.php,.sh,.sql,.html,.css,.yaml,.yml,.toml,.xml,.log" />
+                  <span class="drop__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
+                  </span>
+                  <span class="drop__text"><strong>Drop files</strong> or click to upload</span>
+                  <span class="drop__hint">PDF, DOCX, XLSX, CSV, TXT, MD, JSON or source code · up to 5 files</span>
+                </label>
+                <ul class="files" data-agent-files aria-live="polite"></ul>
+
+                <label class="agent__label" for="agent-task">Task</label>
+                <textarea id="agent-task" rows="3" maxlength="2000" data-agent-task
+                  placeholder="e.g. Summarize this PDF, or find security vulnerabilities in this code"></textarea>
+                <div class="examples" data-agent-examples>
+                  <button type="button">Summarize this document.</button>
+                  <button type="button">Extract the important dates.</button>
+                  <button type="button">Analyse this CSV and calculate the average.</button>
+                  <button type="button">Find all errors and security vulnerabilities in this code.</button>
+                  <button type="button">Create a summary report and save it as report.md.</button>
+                </div>
+                <button class="pill pill--light agent__run" type="submit" data-agent-run disabled>
+                  <span>Run task</span>
+                  <svg class="pill__arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" /></svg>
+                </button>
+
+                <div class="approval" data-agent-approval hidden role="alertdialog" aria-labelledby="approval-title">
+                  <p class="approval__title" id="approval-title">Approval required</p>
+                  <p class="approval__reason" data-approval-reason></p>
+                  <pre class="approval__preview" data-approval-preview></pre>
+                  <div class="approval__actions">
+                    <button class="pill pill--light pill--sm" type="button" data-approve="true">Approve</button>
+                    <button class="pill pill--ghost pill--sm" type="button" data-approve="false">Reject</button>
+                  </div>
+                </div>
+              </form>
+
+              <div class="agent__out">
+                <ol class="stages" data-agent-stages aria-label="Execution stages"></ol>
+                <div class="console" data-agent-console tabindex="0" aria-live="polite" aria-label="Live execution output">
+                  <p class="console__idle">Waiting for a task. Upload a file, describe what you need, then press Run task.</p>
+                </div>
+                <div class="result" data-agent-result hidden>
+                  <div class="result__head">
+                    <span>Final result</span>
+                    <span class="result__meta" data-agent-result-meta></span>
+                  </div>
+                  <div class="result__body" data-agent-result-body></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECORDED REPLAY (clearly separate; never used as a fallback) -->
+          <div class="terminal" id="panel-recorded" role="tabpanel" aria-labelledby="mode-recorded" hidden data-terminal>
             <div class="terminal__bar">
               <span class="terminal__dots" aria-hidden="true"><i></i><i></i><i></i></span>
               <span class="terminal__title">uv run python -m src.demo</span>
@@ -312,9 +397,9 @@
           </div>
 
           <div class="run-it" data-reveal style="--d: 2">
-            <p>Run it yourself from the repository root:</p>
+            <p>Start the live backend from the repository root:</p>
             <div class="run-it__cmd">
-              <code data-cmd>uv run python -m src.demo</code>
+              <code data-cmd>uv run uvicorn src.live.api:app --port 8000</code>
               <button class="pill pill--ghost pill--sm" type="button" data-copy>Copy</button>
             </div>
           </div>

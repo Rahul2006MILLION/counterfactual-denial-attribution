@@ -11,6 +11,13 @@
 > layer or CLI, and it does not change any milestone requirement, acceptance criterion or the
 > definition of done in this plan.
 >
+> **Live agent application (2026-11-14):** At the user's explicit request, a live Ollama-powered
+> agent application (`src/live/`, FastAPI) was built, which settles decision B1 in favour of an HTTP
+> API for that application. It reuses the unchanged ARMMonitor and AuditLog, adds no research
+> code, and its model settings are separate from the pinned research adapter. It is an application
+> layer, not the M3–M7 research protocol: it does not implement C0/C1/C2, counterfactual branches or
+> attribution, and it produces no experimental results.
+>
 > This document is a plan. Nothing in it is implemented unless a milestone is marked COMPLETE in
 > [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md). It makes no security or novelty claims and reports no
 > experimental results.

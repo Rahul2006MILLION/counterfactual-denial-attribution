@@ -13,6 +13,21 @@ dependencies = [
 dev = [
     "pytest>=8.3",
 ]
+# Live Ollama agent application (src/live). The research core needs none of these.
+live = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "python-multipart>=0.0.9",
+    "pypdf>=5.0",
+    "httpx>=0.27",
+]
+
+[tool.uv]
+default-groups = ["dev", "live"]
+# Supply-chain hygiene: only resolve package versions published at least two weeks ago.
+exclude-newer = "2026-10-30T00:00:00Z"
+# Keep the research core's already-locked versions unchanged.
+exclude-newer-package = { pydantic = "2026-11-14T00:00:00Z", pydantic-core = "2026-11-14T00:00:00Z", typing-inspection = "2026-11-14T00:00:00Z" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
