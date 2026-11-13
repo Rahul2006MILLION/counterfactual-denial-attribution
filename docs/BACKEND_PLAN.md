@@ -5,6 +5,12 @@
 > **Baseline:** commit `8c52e6e` on `backend-milestones` (M0–M3.0 complete). `main` / `origin/main` = `e7ad4bb`.
 > **Inputs:** repository-wide audit at `8c52e6e`; [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) §1–§11; C2 catalogue `cda-c2-reasons-v1`.
 >
+> **Frontend exception (2026-11-13):** A static presentation website (`frontend/`) was explicitly
+> approved ahead of M8. It makes no backend calls, adds no HTTP server or Python dependency, and
+> replays only recorded output of the existing terminal demo (`src/demo`). It is not the M8 service
+> layer or CLI, and it does not change any milestone requirement, acceptance criterion or the
+> definition of done in this plan.
+>
 > This document is a plan. Nothing in it is implemented unless a milestone is marked COMPLETE in
 > [`EXPERIMENT_LOG.md`](EXPERIMENT_LOG.md). It makes no security or novelty claims and reports no
 > experimental results.
