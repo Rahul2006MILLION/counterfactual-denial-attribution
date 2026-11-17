@@ -115,7 +115,9 @@ Do **not** commit `.env` or place real credentials in configuration files or exp
 uv run pytest -v
 ```
 
-Currently, the test suite (`tests/test_smoke.py`, `tests/test_models_and_trust.py`, `tests/test_provenance_graph.py`, `tests/test_arm_baseline.py`, `tests/test_phase2_evaluation.py`, `tests/test_phase2_audit.py`, `tests/test_phase3_attribution.py`, `tests/test_phase3_audit.py`, `tests/test_phase4_agent_execution.py`, `tests/test_phase4_1_audit.py`, `tests/test_phase4_2_evidence_model.py`, `tests/test_phase4_3_independent_evaluation.py`) runs 56 deterministic tests.
+Currently, the test suite (`tests/`) runs 472 deterministic unit, integration, baseline regression (M0, M3.0), audit chain (M1), and resource policy (M2) tests across Python 3.12.
+
+For the master project design document, see [`docs/design-document/PROJECT_DESIGN_DOCUMENT.pdf`](docs/design-document/PROJECT_DESIGN_DOCUMENT.pdf) (with Markdown source in [`docs/design-document/PROJECT_DESIGN_DOCUMENT.md`](docs/design-document/PROJECT_DESIGN_DOCUMENT.md) and full evidence traceability in [`docs/design-document/DESIGN_DOCUMENT_EVIDENCE.md`](docs/design-document/DESIGN_DOCUMENT_EVIDENCE.md)).
 
 For the complete chronological research evidence record, see [`output.md`](output.md).
 
@@ -146,26 +148,32 @@ This writes structured outputs to `results/phase4_evaluation_results.json`, `res
 ```text
 denial-attribution-research/
 ├── README.md
+├── HANDOFF.md
 ├── pyproject.toml
+├── uv.lock
 ├── .gitignore
 ├── .env.example
 ├── docs/
+│   ├── design-document/
+│   │   ├── PROJECT_DESIGN_DOCUMENT.pdf
+│   │   ├── PROJECT_DESIGN_DOCUMENT.md
+│   │   └── DESIGN_DOCUMENT_EVIDENCE.md
 │   ├── RESEARCH_PLAN.md
+│   ├── BACKEND_PLAN.md
+│   ├── DESIGN_DECISIONS.md
+│   ├── AUDIT_SCHEMA.md
 │   └── EXPERIMENT_LOG.md
 ├── src/
 │   ├── __init__.py
 │   ├── agent/
-│   ├── tools/
+│   ├── attribution/
+│   ├── demo/
+│   ├── evaluation/
+│   ├── live/
 │   ├── monitor/
-│   ├── replay/
-│   └── evaluation/
-├── scenarios/
-│   ├── direct_denial/
-│   ├── benign_after_denial/
-│   ├── delayed_leakage/
-│   └── multi_step_laundering/
+│   └── tools/
+├── frontend/
 ├── tests/
-│   └── test_smoke.py
 ├── results/
 ├── configs/
 └── scripts/
