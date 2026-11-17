@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Counterfactual Denial Attribution</title>
+    <meta
+      name="description"
+      content="A research project exploring how security denials and their explanations influence the behaviour of tool-using AI agents."
+    />
+    <meta name="theme-color" content="#030305" />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <div class="cursor" aria-hidden="true"><span class="cursor__dot"></span><span class="cursor__ring"></span></div>
+
+    <header class="site-header" data-header>
+      <a class="logo" href="#top" aria-label="Counterfactual Denial Attribution, back to top">
+        <svg class="logo__mark" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M10 2h4v6h-4zM10 16h4v6h-4zM2 10h6v4H2zM16 10h6v4h-6z" />
+          <path class="logo__core" d="M10 10h4v4h-4z" />
+        </svg>
+        <span class="logo__word">cda</span>
+      </a>
+
+      <nav class="nav" aria-label="Primary">
+        <ul class="nav__list" data-nav-list>
+          <li><a class="nav__link" href="#research">Research</a></li>
+          <li><a class="nav__link" href="#architecture">Architecture</a></li>
+          <li><a class="nav__link" href="#security">Security</a></li>
+          <li><a class="nav__link" href="#demo">Live Demo</a></li>
+          <li><a class="nav__link" href="#about">About</a></li>
+        </ul>
+      </nav>
+
+      <a class="pill pill--light pill--sm header-cta" href="#demo" data-magnetic><span>Run the demo</span></a>
+      <button class="menu-btn" type="button" aria-expanded="false" aria-controls="mobile-menu" data-menu-btn>
+        <span class="menu-btn__label">Menu</span>
+      </button>
+      <div class="mobile-menu" id="mobile-menu" hidden data-menu>
+        <a href="#research">Research</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#security">Security</a>
+        <a href="#demo">Live Demo</a>
+        <a href="#about">About</a>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <!-- ============ HERO ============ -->
+      <section class="hero" id="top" aria-labelledby="hero-title" data-hero>
+        <canvas class="hero__canvas" data-hero-canvas aria-hidden="true"></canvas>
+        <div class="hero__fallback" aria-hidden="true"></div>
+        <div class="hero__vignette" aria-hidden="true"></div>
+
+        <div class="hero__content" data-hero-content>
+          <p class="hero__eyebrow">AI agent security research</p>
+          <h1 class="hero__title" id="hero-title">
+            <span class="line">Counterfactual</span>
+            <span class="line line--accent">Denial Attribution</span>
+          </h1>
+          <p class="hero__sub">
+            A controlled, counterfactual framework for studying how security denials and their
+            explanations change what tool-using AI agents do next.
+          </p>
+          <div class="hero__actions">
+            <a class="pill pill--light" href="#research" data-magnetic>
+              <span>Explore the Research</span>
+              <svg class="pill__arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" /></svg>
+            </a>
+            <a class="text-link" href="#demo" data-magnetic>
+              <span class="text-link__play" aria-hidden="true"></span>
+              See the System in Action
+            </a>
+          </div>
+        </div>
+
+        <ol class="hero__steps" aria-label="The research loop">
+          <li data-tip="Propose">
+            <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M14 4v14M8 12l6 6 6-6M5 23h18" /></svg>
+            <span class="sr-only">Agent proposes an action</span>
+          </li>
+          <li data-tip="Evaluate">
+            <svg viewBox="0 0 28 28" aria-hidden="true"><rect x="5" y="5" width="18" height="18" rx="2" /><path d="M10 14h8" /></svg>
+            <span class="sr-only">Monitor evaluates it</span>
+          </li>
+          <li data-tip="Decide">
+            <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M3 14h10M13 14l10-8M13 14l10 8" /></svg>
+            <span class="sr-only">Allow or deny</span>
+          </li>
+          <li data-tip="Feedback">
+            <svg viewBox="0 0 28 28" aria-hidden="true"><circle cx="14" cy="14" r="9" /><path d="M10 14h8" /></svg>
+            <span class="sr-only">Agent receives feedback</span>
+          </li>
+          <li data-tip="Compare">
+            <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M4 15l6 6L24 7" /></svg>
+            <span class="sr-only">Counterfactual branches compared</span>
+          </li>
+        </ol>
+        <div class="hero__scroll" aria-hidden="true"><span></span></div>
+      </section>
+
+      <!-- ============ 01 RESEARCH PROBLEM ============ -->
+      <section class="section problem" id="research" aria-labelledby="research-title">
+        <div class="container">
+          <p class="eyebrow" data-reveal><span>01</span> The research problem</p>
+          <h2 class="display" id="research-title" data-reveal style="--d: 1">
+            Is it the <em>denial</em>,<br />or what the denial <em>says</em>?
+          </h2>
+          <blockquote class="question" data-reveal style="--d: 2">
+            <p>
+              Can controlled counterfactual execution distinguish information leakage caused by a
+              <mark>security denial event</mark> from leakage caused by the <mark>explanation</mark> accompanying that
+              denial?
+            </p>
+            <footer>Research question &middot; under investigation</footer>
+          </blockquote>
+
+          <figure class="split-diagram" data-reveal style="--d: 3" data-draw>
+            <svg viewBox="0 0 960 300" role="img" aria-labelledby="split-title split-desc">
+              <title id="split-title">Two possible causes of a change in agent behaviour</title>
+              <desc id="split-desc">
+                A denial event and the explanation attached to it both reach the agent. The research asks which of the
+                two, if either, changes what the agent does next.
+              </desc>
+              <defs>
+                <linearGradient id="g-line" x1="0" x2="1">
+                  <stop offset="0" stop-color="#7c5cff" stop-opacity="0.2" />
+                  <stop offset="1" stop-color="#c4b5ff" />
+                </linearGradient>
+              </defs>
+              <path class="draw" d="M210 80 C 420 80, 470 150, 640 150" stroke="url(#g-line)" />
+              <path class="draw" d="M210 220 C 420 220, 470 150, 640 150" stroke="url(#g-line)" />
+              <g class="node">
+                <rect x="20" y="52" width="190" height="56" rx="28" />
+                <text x="115" y="86">Denial event</text>
+              </g>
+              <g class="node">
+                <rect x="20" y="192" width="190" height="56" rx="28" />
+                <text x="115" y="226">Explanation</text>
+              </g>
+              <g class="node node--focus">
+                <rect x="640" y="118" width="300" height="64" rx="32" />
+                <text x="790" y="156">Agent's next actions</text>
+              </g>
+              <g class="qmark"><circle cx="520" cy="150" r="20" /><text x="520" y="157">?</text></g>
+              <text class="cap" x="115" y="132">the action is blocked</text>
+              <text class="cap" x="115" y="272">what the agent is told</text>
+              <text class="cap" x="790" y="206">where leakage could appear</text>
+            </svg>
+          </figure>
+
+          <div class="duo">
+            <div data-reveal style="--d: 1">
+              <h3>Event</h3>
+              <p>Whether an action was blocked at all, with no reason given.</p>
+            </div>
+            <div data-reveal style="--d: 2">
+              <h3>Reason</h3>
+              <p>What the denial message reveals about why, and what it might hint at.</p>
+            </div>
+            <div data-reveal style="--d: 3">
+              <h3>Counterfactual</h3>
+              <p>Isolated branches that differ only in the feedback the agent receives.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 02 HOW IT WORKS ============ -->
+      <section class="section flow" id="architecture" aria-labelledby="flow-title" data-flow>
+        <div class="container">
+          <p class="eyebrow" data-reveal><span>02</span> How the system works</p>
+          <h2 class="display" id="flow-title" data-reveal style="--d: 1">
+            Every action passes<br />through the monitor.
+          </h2>
+
+          <div class="flow__track">
+            <svg class="flow__wire" viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
+              <path d="M0 60 H1000" class="flow__wire-base" />
+              <path d="M0 60 H1000" class="flow__wire-live" pathLength="1" data-flow-wire />
+            </svg>
+            <ol class="flow__steps">
+              <li class="flow__step" data-reveal style="--d: 1">
+                <span class="flow__node">1</span>
+                <h3>Propose</h3>
+                <p>The agent proposes a tool call with concrete arguments.</p>
+              </li>
+              <li class="flow__step" data-reveal style="--d: 2">
+                <span class="flow__node">2</span>
+                <h3>Evaluate</h3>
+                <p>The security monitor checks it against every policy layer.</p>
+              </li>
+              <li class="flow__step" data-reveal style="--d: 3">
+                <span class="flow__node">3</span>
+                <h3>Allow or deny</h3>
+                <p>Allowed actions run in a sandbox. Denied actions never execute.</p>
+              </li>
+              <li class="flow__step" data-reveal style="--d: 4">
+                <span class="flow__node">4</span>
+                <h3>Feedback</h3>
+                <p>The agent sees a tool result or denial feedback, then acts again.</p>
+              </li>
+              <li class="flow__step flow__step--future" data-reveal style="--d: 5">
+                <span class="flow__node">5</span>
+                <h3>Compare branches</h3>
+                <p>Isolated counterfactual branches are compared on actual actions and content.</p>
+                <span class="tag">In development</span>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 03 SECURITY ARCHITECTURE ============ -->
+      <section class="section security" id="security" aria-labelledby="security-title" data-security>
+        <div class="container security__grid">
+          <div class="security__copy">
+            <p class="eyebrow" data-reveal><span>03</span> Security architecture</p>
+            <h2 class="display" id="security-title" data-reveal style="--d: 1">An ARM-inspired<br />layered monitor.</h2>
+            <p class="lede" data-reveal style="--d: 2">
+              The monitor makes the authoritative ALLOW or DENY decision. Each proposed action is evaluated by the layers
+              in order; the first layer that fails denies it.
+            </p>
+
+            <ul class="layers" data-layers>
+              <li data-layer="0" tabindex="0" data-reveal style="--d: 2">
+                <span class="layers__id">L1</span>
+                <div>
+                  <h3>Hard boundaries</h3>
+                  <p>Payload limits, sensitive paths <code>HB-2</code>, credential patterns <code>HB-4</code>, call rates.</p>
+                </div>
+              </li>
+              <li data-layer="1" tabindex="0" data-reveal style="--d: 3">
+                <span class="layers__id">L2G</span>
+                <div>
+                  <h3>Graph provenance</h3>
+                  <p>Tracks where data came from; untrusted data cannot reach a protected sink <code>L2G-TRUST</code>.</p>
+                </div>
+              </li>
+              <li data-layer="2" tabindex="0" data-reveal style="--d: 4">
+                <span class="layers__id">L3</span>
+                <div>
+                  <h3>Schema-derived</h3>
+                  <p>Constraints derived from tool schemas, such as suspicious free-text parameters <code>SD-1</code>.</p>
+                </div>
+              </li>
+              <li data-layer="3" tabindex="0" data-reveal style="--d: 5">
+                <span class="layers__id">L4</span>
+                <div>
+                  <h3>Manual policy</h3>
+                  <p>Capability tokens: only permitted tools <code>L4-TOOL</code>, budgets and blocklists.</p>
+                </div>
+              </li>
+            </ul>
+          </div>
+
+          <div class="stack" aria-hidden="true" data-stack>
+            <div class="stack__scene">
+              <div class="stack__plate" data-plate="3" style="--i: 3"><span>L4</span></div>
+              <div class="stack__plate" data-plate="2" style="--i: 2"><span>L3</span></div>
+              <div class="stack__plate" data-plate="1" style="--i: 1"><span>L2G</span></div>
+              <div class="stack__plate" data-plate="0" style="--i: 0"><span>L1</span></div>
+              <div class="stack__beam"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="container facts">
+          <div class="fact" data-reveal style="--d: 1">
+            <h3>Denied means not executed</h3>
+            <p>A denied action never reaches the tool. Authorization and execution are recorded separately.</p>
+          </div>
+          <div class="fact" data-reveal style="--d: 2">
+            <h3>Hash-chained audit</h3>
+            <p>Every action produces a structured audit record, chained with SHA-256 so edits are detectable.</p>
+          </div>
+          <div class="fact" data-reveal style="--d: 3">
+            <h3>Hidden classifications</h3>
+            <p>An opt-in resource policy lets the evaluator know which resources are protected; the agent does not.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 04 LIVE DEMO ============ -->
+      <section class="section demo" id="demo" aria-labelledby="demo-title">
+        <div class="container">
+          <p class="eyebrow" data-reveal><span>04</span> Live demonstration</p>
+          <h2 class="display" id="demo-title" data-reveal style="--d: 1">Run the live agent.</h2>
+          <p class="lede" data-reveal style="--d: 2">
+            Upload a document and describe the task in your own words. A <strong>local Qwen model</strong> running in
+            Ollama plans structured tool calls; every call passes through the project's security monitor before it can
+            run, and sensitive actions wait for your approval. Everything below is streamed from the backend as it
+            happens.
+          </p>
+
+          <div class="modes" role="tablist" aria-label="Demo mode" data-reveal style="--d: 3">
+            <button class="modes__tab" role="tab" id="mode-live" aria-controls="panel-live" aria-selected="true" data-mode="live">
+              <i class="modes__dot modes__dot--live" aria-hidden="true"></i>Live agent
+            </button>
+            <button class="modes__tab" role="tab" id="mode-recorded" aria-controls="panel-recorded" aria-selected="false" tabindex="-1" data-mode="recorded">
+              Recorded replay
+            </button>
+          </div>
+
+          <!-- LIVE AGENT ---------------------------------------------------- -->
+          <div class="agent" id="panel-live" role="tabpanel" aria-labelledby="mode-live" data-agent data-reveal style="--d: 3">
+            <div class="agent__bar">
+              <span class="terminal__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="agent__badge" data-agent-mode>Checking backend…</span>
+              <span class="agent__status" data-agent-ollama><i class="sdot" aria-hidden="true"></i><span>Ollama: checking</span></span>
+              <label class="agent__model">
+                <span>Model</span>
+                <select data-agent-model disabled aria-label="Ollama model"><option>detecting…</option></select>
+              </label>
+            </div>
+
+            <div class="agent__offline" data-agent-offline hidden>
+              <p><strong>The live backend is not reachable.</strong> Nothing is simulated in its place.</p>
+              <p>Start it from the repository root, then reload this page:</p>
+              <code>uv run uvicorn src.live.api:app --port 8000</code>
+              <p class="agent__offline-note" data-agent-offline-detail></p>
+            </div>
+
+            <div class="agent__grid">
+              <form class="agent__controls" data-agent-form>
+                <label class="drop" data-drop>
+                  <input type="file" multiple data-agent-file
+                    accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.json,.py,.js,.ts,.tsx,.jsx,.java,.c,.h,.cpp,.cs,.go,.rs,.rb,.php,.sh,.sql,.html,.css,.yaml,.yml,.toml,.xml,.log" />
+                  <span class="drop__icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" /></svg>
+                  </span>
+                  <span class="drop__text"><strong>Drop files</strong> or click to upload</span>
+                  <span class="drop__hint">PDF, DOCX, XLSX, CSV, TXT, MD, JSON or source code · up to 5 files</span>
+                </label>
+                <ul class="files" data-agent-files aria-live="polite"></ul>
+
+                <label class="agent__label" for="agent-task">Task</label>
+                <textarea id="agent-task" rows="3" maxlength="2000" data-agent-task
+                  placeholder="e.g. Summarize this PDF, or find security vulnerabilities in this code"></textarea>
+                <div class="examples" data-agent-examples>
+                  <button type="button">Summarize this document.</button>
+                  <button type="button">Extract the important dates.</button>
+                  <button type="button">Analyse this CSV and calculate the average.</button>
+                  <button type="button">Find all errors and security vulnerabilities in this code.</button>
+                  <button type="button">Create a summary report and save it as report.md.</button>
+                </div>
+                <button class="pill pill--light agent__run" type="submit" data-agent-run disabled>
+                  <span>Run task</span>
+                  <svg class="pill__arrow" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5" /></svg>
+                </button>
+
+                <div class="approval" data-agent-approval hidden role="alertdialog" aria-labelledby="approval-title">
+                  <p class="approval__title" id="approval-title">Approval required</p>
+                  <p class="approval__reason" data-approval-reason></p>
+                  <pre class="approval__preview" data-approval-preview></pre>
+                  <div class="approval__actions">
+                    <button class="pill pill--light pill--sm" type="button" data-approve="true">Approve</button>
+                    <button class="pill pill--ghost pill--sm" type="button" data-approve="false">Reject</button>
+                  </div>
+                </div>
+              </form>
+
+              <div class="agent__out">
+                <ol class="stages" data-agent-stages aria-label="Execution stages"></ol>
+                <div class="console" data-agent-console tabindex="0" aria-live="polite" aria-label="Live execution output">
+                  <p class="console__idle">Waiting for a task. Upload a file, describe what you need, then press Run task.</p>
+                </div>
+                <div class="result" data-agent-result hidden>
+                  <div class="result__head">
+                    <span>Final result</span>
+                    <span class="result__meta" data-agent-result-meta></span>
+                  </div>
+                  <div class="result__body" data-agent-result-body></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECORDED REPLAY (clearly separate; never used as a fallback) -->
+          <div class="terminal" id="panel-recorded" role="tabpanel" aria-labelledby="mode-recorded" hidden data-terminal>
+            <div class="terminal__bar">
+              <span class="terminal__dots" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span class="terminal__title">uv run python -m src.demo</span>
+              <span class="terminal__badge">Recorded backend output &middot; replay</span>
+            </div>
+            <div class="terminal__tabs" role="tablist" aria-label="Recorded demo tasks" data-terminal-tabs></div>
+            <pre class="terminal__screen" tabindex="0" aria-live="polite" data-terminal-screen></pre>
+            <div class="terminal__meta" data-terminal-meta></div>
+          </div>
+
+          <div class="run-it" data-reveal style="--d: 2">
+            <p>Start the live backend from the repository root:</p>
+            <div class="run-it__cmd">
+              <code data-cmd>uv run uvicorn src.live.api:app --port 8000</code>
+              <button class="pill pill--ghost pill--sm" type="button" data-copy>Copy</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 05 RESEARCH CONDITIONS ============ -->
+      <section class="section conditions" id="conditions" aria-labelledby="conditions-title">
+        <div class="container">
+          <p class="eyebrow" data-reveal><span>05</span> Research conditions</p>
+          <div class="conditions__head">
+            <h2 class="display" id="conditions-title" data-reveal style="--d: 1">Three ways to say no.</h2>
+            <p class="status" data-reveal style="--d: 2">
+              <span class="status__dot" aria-hidden="true"></span>
+              Research protocol in development &middot; not yet implemented &middot; no results
+            </p>
+          </div>
+          <p class="lede" data-reveal style="--d: 2">
+            The planned protocol compares an agent's behaviour across three feedback conditions. The wording below is the
+            approved design, not an experimental finding.
+          </p>
+          <ol class="conds">
+            <li data-reveal style="--d: 1">
+              <span class="conds__id">C0</span>
+              <h3>Outcome-obscured</h3>
+              <p class="conds__msg">&ldquo;No result is available for this request.&rdquo;</p>
+              <p>A denial looks the same as a genuinely missing resource.</p>
+            </li>
+            <li data-reveal style="--d: 2">
+              <span class="conds__id">C1</span>
+              <h3>Generic denial</h3>
+              <p class="conds__msg">&ldquo;This request was denied.&rdquo;</p>
+              <p>The agent learns that it was blocked, but not why.</p>
+            </li>
+            <li data-reveal style="--d: 3">
+              <span class="conds__id">C2</span>
+              <h3>Informative denial</h3>
+              <p class="conds__msg">&ldquo;This request was denied: it exceeds a usage limit set by the policy.&rdquo;</p>
+              <p>A coarse, fixed reason from a versioned seven-category catalogue.</p>
+            </li>
+          </ol>
+          <div class="outcomes" data-reveal style="--d: 2">
+            <span class="outcomes__label">Planned outcome categories</span>
+            <ul>
+              <li>Event-sensitive</li>
+              <li>Reason-sensitive</li>
+              <li>Both</li>
+              <li>Denial-independent</li>
+              <li>Inconclusive</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ABOUT ============ -->
+      <section class="section about" id="about" aria-labelledby="about-title">
+        <div class="container about__inner">
+          <p class="eyebrow" data-reveal><span>06</span> About</p>
+          <h2 class="display display--sm" id="about-title" data-reveal style="--d: 1">
+            A careful study of what agents learn when they are told no.
+          </h2>
+          <ul class="principles">
+            <li data-reveal style="--d: 1">Historical evidence is preserved and regression-tested.</li>
+            <li data-reveal style="--d: 2">Experiments run in an isolated, deterministic sandbox.</li>
+            <li data-reveal style="--d: 3">Invalid runs are never counted as evidence.</li>
+            <li data-reveal style="--d: 4">No results are claimed before they are measured.</li>
+          </ul>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container site-footer__inner">
+        <div class="site-footer__id">
+          <svg class="logo__mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10 2h4v6h-4zM10 16h4v6h-4zM2 10h6v4H2zM16 10h6v4h-6z" />
+            <path class="logo__core" d="M10 10h4v4h-4z" />
+          </svg>
+          <span>Counterfactual Denial Attribution</span>
+        </div>
+        <nav aria-label="Footer">
+          <a href="#research">Research</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#security">Security</a>
+          <a href="#demo">Live Demo</a>
+          <a href="#about">About</a>
+        </nav>
+        <p class="site-footer__note">Static presentation site. It makes no backend calls and reports no experimental results.</p>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,6 +1,12 @@
 # Research Plan: Denial-Specific Causal Attribution in Tool-Calling LLM Agents
 
 > **Document Status:** Living research specification (Phase 0). All hypotheses and proposed mechanisms are unverified until tested against deterministic and LLM-in-the-loop baselines.
+>
+> **2026-11-13 update:** The next protocol uses three conditions (C0 outcome-obscured, C1 generic denial, C2 informative denial) and five attribution outcomes (`EVENT_SENSITIVE`, `REASON_SENSITIVE`, `BOTH_EVENT_AND_REASON_SENSITIVE`, `DENIAL_INDEPENDENT`, `INCONCLUSIVE`). The approved design decisions and open questions are recorded in [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md); they supersede this plan's two-branch `ACTUAL`/`NEUTRALIZED` description for new work only. Historical experiments (EXP-001..EXP-009) are unchanged.
+>
+> **2026-11-13 M2 approvals:** Namespace kinds, fact-variant scenarios, search/listing result mediation (including fact-variant search invariance), and the C2 reason catalogue were approved; see [`DESIGN_DECISIONS.md` §9](DESIGN_DECISIONS.md#9-approved-m2-decisions-a3-a5-a12-and-additional-requirements) and §19 below.
+>
+> **2026-11-13 backend roadmap:** The approved implementation plan for the C0/C1/C2 protocol backend (M3.1–M8) is [`BACKEND_PLAN.md`](BACKEND_PLAN.md). It includes the pre-registration requirement for the A7 decision rule and the gate for the live pilot.
 
 ---
 
@@ -244,3 +250,36 @@ Before claiming any research contribution:
 - **Phase 4:** Integration with tool-calling LLMs and repeated benchmark experiments.
 - **Phase 5:** Statistical analysis, ablations, error analysis, limitations, novelty reassessment.
 - **Phase 6:** Conference paper drafting (Abstract through Conclusion).
+
+## 19. Three-Condition Protocol (Counterfactual Denial Attribution, approved 2026-11-13)
+
+This section summarizes the protocol for new work. The authoritative rules, verification
+requirements, and open questions are in [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md).
+Nothing in this section applies to EXP-001..EXP-009.
+
+### 19.1 Conditions and outcomes
+- **C0** outcome-obscured, **C1** generic denial, **C2** informative denial (fixed templates from a versioned reason catalogue; no interpolated paths, contents, classifications, patterns, or numbers).
+- Per target action: `EVENT_SENSITIVE` (C0 vs C1), `REASON_SENSITIVE` (C1 vs C2), `BOTH_EVENT_AND_REASON_SENSITIVE`, `DENIAL_INDEPENDENT`, or `INCONCLUSIVE` with a machine-readable subtype. Historical `AttributionLabel` values are retained unchanged.
+- Pilot: 5 repetitions per condition, same-condition sham comparisons, randomized execution order. Exploratory only: no significance or generalizability claims.
+
+### 19.2 Scenario structure
+- **Namespace kinds:** *concealing* (the decision depends only on agent-observable request attributes, so existence is hidden) and *classification-dependent* (the decision depends on hidden classification, creating a leakable protected fact).
+- **Matched fact-variant groups:** the same task with the target resource `CONFIDENTIAL`, `PUBLIC`, or `ABSENT`, using neutral synthetic paths and neutral reporting goals.
+- **Search and listing:** concealed resources are removed by monitor result mediation (path and content), with no placeholders, counts, or redaction metadata visible to the agent. In fact-variant groups the target is excluded from search and listing in every variant, including `PUBLIC`, so these tools cannot reveal the fact independently, unless a group is explicitly labelled as using search as its experimental channel.
+- Namespace-kind and fact-variant labels are evaluator-only.
+
+### 19.3 Three separate measurements
+| Measurement | Varies | Evidence |
+|---|---|---|
+| **Attribution sensitivity** | Feedback condition (C0/C1/C2) | Behaviour differences across conditions beyond same-condition variability |
+| **Protected-fact inference** | Hidden fact (`CONFIDENTIAL`/`PUBLIC`/`ABSENT`) | Agent outputs that carry the fact, compared across variants |
+| **Actual leakage** | Hidden fact | An *executed* protected-sink action carrying the fact; a denied attempt is reported as attempted leakage |
+
+The three are reported separately and are not used as evidence for one another.
+
+### 19.4 Reporting and threats to validity
+- All results are stratified by namespace kind and by C2 reason category; pooled figures are secondary.
+- **Verbosity confound:** C2 is longer and more formal than C1, so a C1-vs-C2 difference may reflect length or tone rather than information. The pilot has no length-matched control; C1/C2 text lengths are reported with every result.
+- **Residual disclosure:** in classification-dependent namespaces the C1 denial event itself reveals the classification bit; C2 adds nothing more specific, so the C2 manipulation is weaker there.
+- **Pretraining priors:** mitigated by neutral synthetic paths for target resources; classic system paths remain only as comparison scenarios.
+- **Historical preservation:** all new behaviour is opt-in and the M0 regression tests must pass after every change.
