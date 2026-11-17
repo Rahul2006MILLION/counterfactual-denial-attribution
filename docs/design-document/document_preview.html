@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Counterfactual Denial Attribution in Tool-Using LLM Agents</title>
+<style>
+  @page {
+    size: A4 landscape;
+    margin: 0;
+  }
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html, body {
+    width: 297mm;
+    height: 210mm;
+    max-width: 297mm;
+    max-height: 210mm;
+    overflow: hidden;
+    background: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page-container {
+    width: 297mm;
+    height: 210mm;
+    padding: 6.5mm 8.5mm 5mm 8.5mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  
+  /* HEADER */
+  header {
+    border-bottom: 1.5px solid #0f172a;
+    padding-bottom: 3.5px;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .header-left h1 {
+    font-size: 13.5pt;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #0f172a;
+    line-height: 1.15;
+  }
+  .header-left .subtitle {
+    font-size: 7.2pt;
+    font-weight: 600;
+    color: #1d4ed8;
+    margin-top: 1.5px;
+  }
+  .header-right {
+    text-align: right;
+    font-size: 6.2pt;
+    color: #475569;
+    line-height: 1.3;
+  }
+  .badge {
+    display: inline-block;
+    padding: 1px 5px;
+    font-size: 6pt;
+    font-weight: 700;
+    border-radius: 3px;
+    background: #ecfdf5;
+    color: #047857;
+    border: 0.5px solid #6ee7b7;
+  }
+
+  /* 3-COLUMN GRID */
+  .grid-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.05fr 1.15fr;
+    gap: 4.5mm;
+    height: 172mm;
+    max-height: 172mm;
+  }
+
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 4mm;
+    height: 100%;
+    min-height: 0;
+  }
+
+  /* CARDS & SECTIONS */
+  .section-card {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 5.5px 7px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    overflow: hidden;
+  }
+  .section-card.primary {
+    border-top: 2.5px solid #1e3a8a;
+  }
+  .section-card.accent {
+    border-top: 2.5px solid #2563eb;
+  }
+  .section-card.success {
+    border-top: 2.5px solid #0d9488;
+  }
+  .section-card.violet {
+    border-top: 2.5px solid #6366f1;
+  }
+
+  .sec-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 0.75px solid #e2e8f0;
+    padding-bottom: 2.5px;
+    margin-bottom: 3.5px;
+  }
+  .sec-title {
+    font-size: 7.2pt;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .sec-tag {
+    font-size: 5.5pt;
+    font-weight: 700;
+    padding: 1px 4px;
+    border-radius: 2px;
+    background: #f1f5f9;
+    color: #334155;
+  }
+
+  p, li {
+    font-size: 6.1pt;
+    line-height: 1.28;
+    color: #334155;
+  }
+  p {
+    margin-bottom: 2.5px;
+  }
+  p strong, li strong {
+    color: #0f172a;
+    font-weight: 700;
+  }
+  ul {
+    padding-left: 10px;
+    margin-bottom: 2.5px;
+  }
+  li {
+    margin-bottom: 1.5px;
+  }
+
+  /* CALLOUT BOXES */
+  .callout {
+    background: #f8fafc;
+    border-left: 2px solid #3b82f6;
+    padding: 3px 5px;
+    border-radius: 0 3px 3px 0;
+    margin: 2px 0 3px 0;
+    font-size: 5.8pt;
+    line-height: 1.25;
+    color: #1e293b;
+  }
+  .callout.alert {
+    background: #fff1f2;
+    border-left-color: #e11d48;
+    color: #881337;
+  }
+  .callout.green {
+    background: #f0fdf4;
+    border-left-color: #16a34a;
+    color: #14532d;
+  }
+
+  /* METRIC TABLE */
+  .metric-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 5.7pt;
+    margin: 2.5px 0 3px 0;
+  }
+  .metric-table th, .metric-table td {
+    padding: 1.8px 3.5px;
+    border: 0.5px solid #cbd5e1;
+    text-align: left;
+  }
+  .metric-table th {
+    background: #f8fafc;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  .metric-table tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+
+  /* DIAGRAM CONTAINER */
+  .diagram-container {
+    width: 100%;
+    margin: 2px 0 3px 0;
+    background: #ffffff;
+    border: 0.75px solid #cbd5e1;
+    border-radius: 3px;
+    padding: 2px;
+  }
+  .diagram-container svg {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* FOOTER */
+  footer {
+    height: 10mm;
+    border-top: 1px solid #cbd5e1;
+    padding-top: 2.5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 5.7pt;
+    color: #475569;
+  }
+  .references {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    max-width: 82%;
+  }
+  .ref-item {
+    color: #334155;
+  }
+  .ref-item strong {
+    color: #0f172a;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-container">
+
+  <!-- HEADER -->
+  <header>
+    <div class="header-left">
+      <h1>Counterfactual Denial Attribution in Tool-Using LLM Agents</h1>
+      <div class="subtitle">Disentangling Denial-Feedback Side-Channels from Legitimate Agent Actions via Controlled Interventions</div>
+    </div>
+    <div class="header-right">
+      <div><strong>Repository:</strong> Rahul2006MILLION/counterfactual-denial-attribution &nbsp;|&nbsp; <strong>Branch:</strong> main (<span style="font-family: monospace;">7b055cb</span>)</div>
+      <div><strong>Validation:</strong> <span class="badge">472/472 PASS (6.96s)</span> &nbsp;|&nbsp; <strong>Baseline:</strong> ARM (Chinaei 2026) &nbsp;|&nbsp; <strong>Model:</strong> qwen3:4b-4k (Ollama)</div>
+    </div>
+  </header>
+
+  <!-- 3-COLUMN CONTENT GRID -->
+  <div class="grid-layout">
+
+    <!-- COLUMN 1: SECTION A & SECTION B -->
+    <div class="col">
+      
+      <!-- SECTION A -->
+      <div class="section-card primary" style="flex: 1.05;">
+        <div class="sec-header">
+          <span class="sec-title">Section A: Problem Statement</span>
+          <span class="sec-tag">Threat Model</span>
+        </div>
+        <p>Tool-calling LLM agents autonomously query storage, APIs, and databases. When a runtime reference monitor denies an unauthorized tool call, the agent observes the denial event and error feedback. This creates an unintended side-channel—<strong>causality laundering</strong> (Chinaei, 2026)—where agents infer confidential state (existence, schema boundaries, sensitivity) and exfiltrate it via subsequent benign calls.</p>
+        
+        <div class="callout alert">
+          <strong>The Failure of Existing Heuristics (ARM Baseline Trade-offs):</strong>
+          <ul style="margin: 1px 0 0 10px; padding: 0;">
+            <li><strong>Over-Approximation (High FP):</strong> ARM's <code>IMMEDIATE_NEXT</code> heuristic flags any post-denial call as tainted, crashing benign task completion from 100% to <strong>14.3%</strong> (FPR <strong>86.4%</strong> in <code>EXP-002</code>).</li>
+            <li><strong>Under-Approximation (High FN):</strong> Lexical target-scoped filtering (<code>SINK_SCOPED</code>) prevents false alarms but fails against paraphrased, delayed, or multi-step laundering (ASR remains <strong>75.0%–100%</strong>).</li>
+          </ul>
+        </div>
+        <p style="margin-bottom: 0;"><strong>Target Affected:</strong> High-autonomy agents under zero-trust governance.<br><strong>Core Engineering Gap:</strong> Inability to distinguish genuine denial-induced leakage from unrelated legitimate actions without crippling operational utility.</p>
+      </div>
+
+      <!-- SECTION B -->
+      <div class="section-card accent" style="flex: 1.15;">
+        <div class="sec-header">
+          <span class="sec-title">Section B: Research Review</span>
+          <span class="sec-tag">Foundations &amp; Gaps</span>
+        </div>
+        <p><strong>Primary Foundation:</strong> Mohammad Hossein Chinaei (April 2026, <em>arXiv:2604.04035</em>) formalized causality laundering and introduced the <strong>Agentic Reference Monitor (ARM)</strong> featuring a 5-level integrity lattice (<span style="font-family: monospace; font-size: 5.5pt;">Desc &lt; Untrusted &lt; Trusted &lt; User &lt; Sys</span>), 4-layer policy pipeline (<code>L1</code>–<code>L4</code>), and hash-chained audits. Chinaei acknowledged ARM's temporal-adjacency heuristic cannot prove causality and lacked large-scale benign benchmarks.</p>
+        
+        <p><strong>Related Literature &amp; Technical Limitations:</strong></p>
+        <ul>
+          <li><strong>Information-Flow Control (FIDES, PCAS):</strong> Costa et al. (IEEE SaTML 2026) and Palumbo et al. (2026) compile declarative policies over observable data dependencies. Effective for direct flows, but blind to implicit knowledge inferred from negative denial outcomes.</li>
+          <li><strong>Capability Isolation (CaMeL):</strong> Debenedetti et al. (2025) enforces planner/executor separation. However, if the planner sees denial feedback, structural token isolation fails to prevent inference.</li>
+          <li><strong>Causal Diagnostics &amp; Ablation:</strong> AgentSentry (Zhang 2026) and CausalArmor (Kim 2026) evaluate runtime re-execution and input ablation for prompt injection, but do not insulate runtime denial channels.</li>
+        </ul>
+        <div class="callout" style="margin-bottom: 0;">
+          <strong>Identified Research Gap:</strong> Prior work either treats denials as silent terminal drops or relies on brittle temporal adjacency. No prior system isolates denial causality via structured counterfactual feedback intervention (<code>C0</code> vs <code>C1</code> vs <code>C2</code>).
+        </div>
+      </div>
+
+    </div>
+
+    <!-- COLUMN 2: SECTION C -->
+    <div class="col">
+      <div class="section-card success" style="height: 100%; justify-content: space-between;">
+        <div>
+          <div class="sec-header">
+            <span class="sec-title">Section C: Methodology &amp; Empirical Evidence</span>
+            <span class="sec-tag">Evaluation</span>
+          </div>
+          
+          <p><strong>1. Controlled Counterfactual Interventions:</strong> Evaluates dual branches under identical tasks, seeds, initial states, and permissions: <strong>Branch A</strong> receives actual/informative feedback ($c_A$); <strong>Branch B</strong> receives neutralized/obscured feedback ($c_B$).</p>
+          
+          <p><strong>2. Three-Condition Protocol:</strong>
+          <strong>C0 (Outcome-Obscured):</strong> Observation is byte-identical to a genuine missing resource (<span style="font-family: monospace; font-size: 5.4pt;">"No result is available"</span>);
+          <strong>C1 (Generic Denial):</strong> Discloses event only (<span style="font-family: monospace; font-size: 5.4pt;">"This request was denied"</span>);
+          <strong>C2 (Informative):</strong> Discloses non-sensitive coarse reason via versioned catalogue (<code>cda-c2-reasons-v1</code>). Contrast C0 vs C1 isolates event sensitivity; C1 vs C2 isolates reason sensitivity.</p>
+
+          <p><strong>3. Canonical Lineage &amp; Evidence Model:</strong> <code>resolve_logical_source()</code> maps synthetic runtime IDs to logical identities (<span style="font-family: monospace; font-size: 5.4pt;">logical::tool(args)</span>) with SHA-256 content digests, preventing branch ID artifacts. <code>EvidenceBasedAttributor</code> outputs 4 verified classes without keyword heuristics: <code>DENIAL_SENSITIVE</code>, <code>DENIAL_INDEPENDENT</code>, <code>AMBIGUOUS</code>, and <code>NOT_EVALUABLE</code>.</p>
+
+          <p style="font-weight: 700; color: #0f172a; margin-top: 2px;">Phase 4.3 Independent Benchmark Evidence (n=104, Seed 43127):</p>
+          <table class="metric-table">
+            <thead>
+              <tr>
+                <th>Evaluation Configuration</th>
+                <th>4-Class Acc</th>
+                <th>Macro-F1</th>
+                <th>FAR (Indep.)</th>
+                <th>Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>E_COMBINED (Full Model)</strong></td>
+                <td><strong>96.15% (100/104)</strong></td>
+                <td><strong>0.9575</strong></td>
+                <td><strong>0.000 (0/32)</strong></td>
+                <td><strong>65.38%</strong></td>
+              </tr>
+              <tr>
+                <td>A_TRACE_DIVERGENCE_ONLY</td>
+                <td>80.77%</td>
+                <td>0.7932</td>
+                <td>0.000</td>
+                <td>100.0%</td>
+              </tr>
+              <tr>
+                <td>H_NO_ALT_EXPLANATIONS</td>
+                <td>80.77%</td>
+                <td>0.7845</td>
+                <td>0.000</td>
+                <td>84.62%</td>
+              </tr>
+              <tr>
+                <td>J_NO_CANONICAL_IDENTITY</td>
+                <td>71.15%</td>
+                <td>0.6890</td>
+                <td>0.8125</td>
+                <td>65.38%</td>
+              </tr>
+              <tr>
+                <td>C_DENIAL_EVENT_ONLY</td>
+                <td>50.00%</td>
+                <td>0.4350</td>
+                <td>1.000</td>
+                <td>100.0%</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="callout green">
+            <strong>Key Statistical Findings:</strong> 4-class accuracy reaches 96.15% (95% Wilson CI [90.5%, 98.5%]); selective accuracy is 94.12% (64/68) at 65.38% coverage. Removing canonical identity causes FAR to surge to <strong>81.25%</strong>. All 4 errors are coincidental modulo-3 greeting collisions.
+          </div>
+        </div>
+
+        <div>
+          <p><strong>Multi-Policy Robustness:</strong> 100% accuracy on Stopping, Recovery, Denial-Insensitive, and Memory-Mediated agents. <strong>Safety Nets:</strong> 47 frozen artifact hashes; 104 golden tests pinning byte-level request bodies.</p>
+          <p style="margin-bottom: 0;"><strong>Live-LLM Status:</strong> Interactive agent live with <code>qwen3:4b-4k</code>; Phase 5 40-scenario benchmark is partially implemented (8 completed; 31 halted by Ollama daemon exit).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- COLUMN 3: SECTION D -->
+    <div class="col">
+      <div class="section-card violet" style="height: 100%; justify-content: space-between;">
+        <div>
+          <div class="sec-header">
+            <span class="sec-title">Section D: Solution Framework</span>
+            <span class="sec-tag">Architecture</span>
+          </div>
+
+          <!-- COMPACT ARCHITECTURE SVG DIAGRAM -->
+          <div class="diagram-container">
+            <svg viewBox="0 0 540 190" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="gBlue" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#1e3a8a"/><stop offset="100%" stop-color="#2563eb"/>
+                </linearGradient>
+                <linearGradient id="gPurple" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#581c87"/><stop offset="100%" stop-color="#7c3aed"/>
+                </linearGradient>
+                <linearGradient id="gGreen" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#065f46"/><stop offset="100%" stop-color="#10b981"/>
+                </linearGradient>
+                <linearGradient id="gRed" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#991b1b"/><stop offset="100%" stop-color="#ef4444"/>
+                </linearGradient>
+                <filter id="sh" x="-2%" y="-4%" width="104%" height="110%">
+                  <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000000" flood-opacity="0.08"/>
+                </filter>
+              </defs>
+
+              <!-- Agent Task & Sandbox -->
+              <rect x="8" y="8" width="135" height="40" rx="3" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.75" filter="url(#sh)"/>
+              <text x="75" y="24" font-size="8.5" font-weight="700" text-anchor="middle" fill="#0f172a">AgentTask &amp; Initial State</text>
+              <text x="75" y="37" font-size="6.8" text-anchor="middle" fill="#64748b">Identical Seed, Context &amp; Tools</text>
+
+              <rect x="397" y="8" width="135" height="40" rx="3" fill="#f8fafc" stroke="#cbd5e1" stroke-width="0.75" filter="url(#sh)"/>
+              <text x="464" y="24" font-size="8.5" font-weight="700" text-anchor="middle" fill="#0f172a">Sandboxed Execution</text>
+              <text x="464" y="37" font-size="6.8" text-anchor="middle" fill="#64748b">Simulated In-Memory Tool Suite</text>
+
+              <!-- Agent Policy -->
+              <rect x="8" y="68" width="135" height="40" rx="3" fill="#eff6ff" stroke="#93c5fd" stroke-width="0.75" filter="url(#sh)"/>
+              <text x="75" y="84" font-size="8.5" font-weight="700" text-anchor="middle" fill="#1e3a8a">Agent Policy Under Test</text>
+              <text x="75" y="97" font-size="6.8" text-anchor="middle" fill="#2563eb">Reactive / Ollama Live Adapter</text>
+
+              <!-- Arrow Task -> Agent -->
+              <line x1="75" y1="48" x2="75" y2="68" stroke="#64748b" stroke-width="1.2"/>
+              <polygon points="72,64 75,69 78,64" fill="#64748b"/>
+
+              <!-- ARM Reference Monitor -->
+              <rect x="175" y="52" width="190" height="72" rx="4" fill="url(#gBlue)" filter="url(#sh)"/>
+              <text x="270" y="70" font-size="9" font-weight="800" text-anchor="middle" fill="#ffffff">ARMMonitor &amp; Policy Core</text>
+              <text x="270" y="83" font-size="6.8" text-anchor="middle" fill="#e0e7ff">L1 Hard Boundaries | L2G Provenance Lattice</text>
+              <text x="270" y="95" font-size="6.8" text-anchor="middle" fill="#e0e7ff">L3 Schema Constraints | L4 Tool Permissions</text>
+              <text x="270" y="109" font-size="6.8" font-weight="700" text-anchor="middle" fill="#fde047">Concealing Namespaces &amp; Result Mediation</text>
+
+              <!-- Arrow Agent -> Monitor -->
+              <line x1="143" y1="88" x2="175" y2="88" stroke="#0f172a" stroke-width="1.5"/>
+              <polygon points="171,85 177,88 171,91" fill="#0f172a"/>
+              <text x="159" y="82" font-size="6.2" font-weight="700" text-anchor="middle" fill="#475569">Action</text>
+
+              <!-- Arrow Monitor -> Sandbox (ALLOW) -->
+              <path d="M 365 74 L 464 74 L 464 48" fill="none" stroke="#059669" stroke-width="1.5"/>
+              <polygon points="461,52 464,46 467,52" fill="#059669"/>
+              <rect x="378" y="65" width="50" height="14" rx="2" fill="url(#gGreen)"/>
+              <text x="403" y="75" font-size="6.8" font-weight="800" text-anchor="middle" fill="#ffffff">ALLOW</text>
+
+              <!-- Intervention Engine (DENY) -->
+              <rect x="397" y="100" width="135" height="42" rx="3" fill="url(#gRed)" filter="url(#sh)"/>
+              <text x="464" y="115" font-size="8.5" font-weight="800" text-anchor="middle" fill="#ffffff">Intervention Engine</text>
+              <text x="464" y="128" font-size="6.5" text-anchor="middle" fill="#fee2e2">C0 Obscured | C1 Generic Denial</text>
+              <text x="464" y="137" font-size="6.5" text-anchor="middle" fill="#fee2e2">C2 Coarse Reason Catalogue</text>
+
+              <!-- Arrow Monitor -> Intervention -->
+              <path d="M 365 104 L 397 104" fill="none" stroke="#dc2626" stroke-width="1.5"/>
+              <polygon points="393,101 399,104 393,107" fill="#dc2626"/>
+              <text x="381" y="100" font-size="6.2" font-weight="700" text-anchor="middle" fill="#dc2626">DENY</text>
+
+              <!-- Feedback loop back to Agent -->
+              <path d="M 464 142 L 464 154 L 75 154 L 75 108" fill="none" stroke="#475569" stroke-width="1.2" stroke-dasharray="2.5,2"/>
+              <polygon points="72,112 75,106 78,112" fill="#475569"/>
+              <text x="270" y="150" font-size="6.5" font-weight="700" text-anchor="middle" fill="#475569">Controlled Observation Feedback Loop (Branch A vs B)</text>
+
+              <!-- Paired Traces -> Evidence Attributor -->
+              <rect x="75" y="162" width="390" height="25" rx="3" fill="url(#gPurple)" filter="url(#sh)"/>
+              <text x="270" y="174" font-size="8" font-weight="800" text-anchor="middle" fill="#ffffff">Canonical Identity Resolver &amp; Evidence-Based Attributor</text>
+              <text x="270" y="184" font-size="6.5" text-anchor="middle" fill="#f3e8ff">Verdicts: [DENIAL_SENSITIVE] | [DENIAL_INDEPENDENT] | [AMBIGUOUS] | [NOT_EVALUABLE]</text>
+            </svg>
+          </div>
+
+          <p><strong>Implemented Core Architecture Modules:</strong></p>
+          <ul>
+            <li><strong>ARMMonitor &amp; Provenance Graph (<code>src/monitor/</code>):</strong> Evaluates <code>L1</code>–<code>L4</code> with result mediation in concealing namespaces; maintains NetworkX graph with <code>Call</code>, <code>Data</code>, <code>DeniedAction</code> nodes and <code>COUNTERFACTUAL</code> edges.</li>
+            <li><strong>Hash-Chained Audit Trail (M1):</strong> <code>AuditLog</code> records immutable SHA-256 records, separating <code>authorization</code> (ALLOW/DENY) from <code>execution_status</code> (EXECUTED/NOT_EXECUTED_DENIED/TOOL_ERROR).</li>
+            <li><strong>Intervention Engine &amp; Canonical Resolver (<code>src/attribution/</code>):</strong> Translates denials into C0/C1/C2 conditions and resolves branch IDs to invariant canonical sources (<span style="font-family: monospace; font-size: 5.5pt;">canonical.py</span>).</li>
+            <li><strong>Live Document Agent (<code>src/live/</code>):</strong> FastAPI SSE backend with local Ollama planner, security gateway, and interactive UI.</li>
+          </ul>
+        </div>
+        <p style="font-size: 5.7pt; color: #64748b; margin-top: 1px; margin-bottom: 0;"><em>Note:</em> Trace divergence indicates sensitivity under tested conditions, not formal mathematical proof of general causality.</p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- FOOTER REFERENCES -->
+  <footer>
+    <div class="references">
+      <span class="ref-item"><strong>[1]</strong> M. H. Chinaei, <em>arXiv:2604.04035</em> (2026)</span>
+      <span class="ref-item"><strong>[2]</strong> P. Costa et al., <em>IEEE SaTML</em> (2026)</span>
+      <span class="ref-item"><strong>[3]</strong> E. Palumbo et al., <em>arXiv:2602.16708</em> (2026)</span>
+      <span class="ref-item"><strong>[4]</strong> E. Debenedetti et al., <em>arXiv:2503.18813</em> (2025)</span>
+      <span class="ref-item"><strong>[5]</strong> X. Zhang et al., <em>arXiv:2602.22724</em> (2026)</span>
+      <span class="ref-item"><strong>[6]</strong> S. Kim et al., <em>arXiv:2602.07918</em> (2026)</span>
+    </div>
+    <div style="font-weight: 600; color: #1e293b;">Project Discussion Ready &nbsp;|&nbsp; Master Design Document</div>
+  </footer>
+
+</div>
+
+</body>
+</html>
