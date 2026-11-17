@@ -38,6 +38,9 @@
 - **Phase 5 Status:** **Scaffolding & partial raw records published — FULL LLM EVALUATION INCOMPLETE.**
   - `canonical.py` Case 5 defect was fixed in `c62c636` (`59/59` tests passing).
   - The preliminary `qwen3.5:4b` run (`EXP-009`) passed the smoke test and `8/40` core scenarios cleanly, then encountered an Ollama service exit at `LLM_SC_009`, leaving `31/40` core scenarios, `10/10` prompt-injection scenarios, and `2/2` sham controls as `NOT_EVALUABLE` (`ConnectionRefusedError`). Do **not** cite `EXP-009` for performance claims.
+- **Backend milestones (2026-11-13):** M0 historical-evidence safety net (`5b86471`) and M1 action audit records (`d164972`) are committed. The design decisions for the new C0/C1/C2 protocol are recorded in [`docs/DESIGN_DECISIONS.md`](docs/DESIGN_DECISIONS.md); its §7 lists open questions that must be answered before M2/M3.
+- **Backend roadmap:** The approved master plan for completing the backend (M3.1–M8) before any frontend work is [`docs/BACKEND_PLAN.md`](docs/BACKEND_PLAN.md). It sets the milestone order, the schedule for resolving research decisions, the handling of known defects, acceptance criteria and the definition of done.
+- **Live agent (2026-11-14):** `src/live/` is a locally running document agent. A local Ollama model (Qwen auto-detected; override with `CDA_OLLAMA_MODEL`) plans structured tool calls from an allowlist; every call passes a live policy check, the unchanged ARMMonitor and, for file writes, human approval, and is recorded in the hash-chained audit log. Start the API with `uv run uvicorn src.live.api:app --port 8000` and the site with `npm run dev` in `frontend/` (the Live Demo section proxies `/api`). Deterministic tests: `tests/test_live_agent.py`; real-model checks: `uv run python -m src.live.smoke`. Uploads and outputs go to the gitignored `.live_workspace/`.
 
 ---
 
@@ -53,6 +56,7 @@ denial-attribution-research/
 ├── .env.example                # Optional environment variables template (never commit .env)
 ├── docs/
 │   ├── RESEARCH_PLAN.md        # Methodology, threat model, baselines, and Phase 5 plan
+│   ├── BACKEND_PLAN.md         # Approved master backend roadmap (M3.1–M8)
 │   └── EXPERIMENT_LOG.md       # Chronological experiment log (EXP-001 through EXP-008)
 ├── src/
 │   ├── monitor/                # ARM-inspired baseline: models.py, provenance.py, arm_baseline.py
@@ -85,7 +89,10 @@ flowchart LR
 
 ### Key Modules & Responsibilities
 - **`src/monitor/`:**
-  - `models.py`: `TrustLevel` `IntEnum` (`TOOL_DESC < TOOL_UNTRUSTED < TOOL_TRUSTED < USER_INPUT < SYS_INSTR`), `AgentEvent`, `DenialEvent`, `ProvenanceNode`, `ProvenanceEdge`, `PolicyDecision`.
+  - `models.py`: `TrustLevel` `IntEnum` (`TOOL_DESC < TOOL_UNTRUSTED < TOOL_TRUSTED < USER_INPUT < SYS_INSTR`), `AgentEvent`, `DenialEvent`, `ProvenanceNode`, `ProvenanceEdge`, `PolicyDecision`, `ExecutionStatus`, `ActionAuditRecord` (M1).
+  - `audit.py` (M1): hash-chained `AuditLog`, `verify_chain` (see [`docs/AUDIT_SCHEMA.md`](docs/AUDIT_SCHEMA.md)).
+  - `resources.py` (M2, opt-in): hidden `ResourceRegistry`, `ProtectedNamespace` (concealing / classification-dependent), `ResourcePolicy`. Used by `ResourcePolicyLayer` and `ARMMonitor.mediate_tool_output` in `arm_baseline.py`.
+  - `reason_catalogue.py` (M2): versioned C2 reason catalogue (final wording `cda-c2-reasons-v1`) mapping every DENY rule ID to one category; also holds the approved C1 text.
   - `provenance.py`: NetworkX `ProvenanceGraph` (`Call`, `Data`, `DataField`, `DeniedAction` nodes; `DIRECT_OUTPUT`, `INPUT_TO`, `FIELD_OF`, `COUNTERFACTUAL` edges; `min_trust`, `counterfactual_chains`).
   - `arm_baseline.py`: `ARMMonitor` with `L1` (`HardBoundariesLayer`), `L2` (`FlatProvenanceLayer`), `L2G` (`GraphProvenanceLayer`), `L3` (`SchemaDerivedLayer`), `L4` (`ManualPolicyLayer`), and `CounterfactualStrategy` (`NONE`, `IMMEDIATE_NEXT`, `ALL_SUBSEQUENT`, `SINK_SCOPED`).
 - **`src/attribution/`:**
@@ -99,7 +106,7 @@ flowchart LR
   - `state.py`: `AgentTask`, `AgentObservation`, `ProposedAction` (`extra="forbid"`), isolated `AgentMemory`.
   - `environment.py`: `SandboxedEnvironment` (all tools simulated in-memory; zero real side effects).
   - `agent.py` & `policies.py`: `ReactivePolicyAgent`, `ConservativeStoppingAgent`, `IndependentRecoveryAgent`, `DenialInsensitiveAgent`, `MemoryMediatedAgent`, `SourcePrioritizationAgent`, and `OllamaAgentAdapter` (disabled by default).
-  - `executor.py`: `AgentExecutor` mediating every tool call through `ARMMonitor`.
+  - `executor.py`: `AgentExecutor` mediating every tool call through `ARMMonitor`; emits one `ActionAuditRecord` per proposed action (`BranchExecutionResult.audit_log`), recording authorization and execution separately (M1).
 
 ---
 
@@ -208,7 +215,7 @@ head -n 20 results/phase5_llm_predictions.csv
 1. Read `HANDOFF.md` (this file) first, then `output.md` for full evidence.
 2. Inspect `src/` and `tests/` before modifying any code.
 3. Run `uv run pytest -v` before and after every change.
-4. Never modify historical `results/phase1_*` through `results/phase4_3_*` files.
+4. Never modify historical `results/phase1_*` through `results/phase5_*` files. This is enforced by `tests/test_m0_historical_regression.py` against the frozen manifest `tests/fixtures/historical_artifacts_sha256.json`; never regenerate that manifest to make a test pass. Write new experiment outputs to a `results/` subdirectory (e.g. `results/cda/<run_id>/`). Do not run historical runners with their default `output_dir`, because they overwrite committed files.
 5. Keep runtime agent/environment inputs strictly separated from ground-truth labels.
 6. Document every new experiment in `docs/EXPERIMENT_LOG.md` and `output.md`.
 7. Commit in meaningful milestones and push only verified work.

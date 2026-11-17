@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from src.agent.agent import BaseAgent
@@ -25,7 +25,10 @@ from src.monitor.arm_baseline import (
     MonitorConfig,
     ProvenanceMode,
 )
-from src.monitor.models import DecisionVerdict
+from src.monitor.audit import AuditLog
+from src.monitor.models import DecisionVerdict, ExecutionStatus, PolicyDecision
+from src.monitor.reason_catalogue import CATALOGUE_VERSION, category_for_rule, deny_rule_id
+from src.monitor.resources import ResourcePolicy
 
 _PROTECTED_SINKS = frozenset(
     {
@@ -46,6 +49,23 @@ def _hash_obj(obj: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
 
 
+def _output_digest(output: Any) -> str:
+    """Full SHA-256 of a tool output's canonical JSON (the output itself is not logged)."""
+    payload = json.dumps(output, sort_keys=True, default=str, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _layer_verdicts(decision: PolicyDecision) -> list[dict[str, str]]:
+    layers = decision.evidence.get("layers", [])
+    return [
+        {
+            "layer": str(layer.get("layer_name", "")),
+            "verdict": str(getattr(layer.get("verdict"), "value", layer.get("verdict"))),
+        }
+        for layer in layers
+    ]
+
+
 @dataclass
 class BranchExecutionResult:
     """Complete result of running a single independent agent branch."""
@@ -58,6 +78,7 @@ class BranchExecutionResult:
     termination_reason: str
     agent_overhead_ms: float
     monitor_overhead_ms: float
+    audit_log: AuditLog = field(default_factory=AuditLog)
 
 
 class AgentExecutor:
@@ -77,8 +98,13 @@ class AgentExecutor:
         branch_name: str,
         feedback_condition: FeedbackCondition,
         monitor_config: MonitorConfig | None = None,
+        resource_policy: ResourcePolicy | None = None,
     ) -> BranchExecutionResult:
-        """Execute a single independent branch with isolated state and memory."""
+        """Execute a single independent branch with isolated state and memory.
+
+        ``resource_policy`` (M2, opt-in) enables the hidden-resource policy layer
+        and listing-output mediation. When omitted, behaviour is unchanged.
+        """
         env = SandboxedEnvironment(initial_env_state)
         memory = AgentMemory()
         cfg = monitor_config or MonitorConfig(
@@ -93,6 +119,7 @@ class AgentExecutor:
             session_id=f"{task.task_id}_{branch_name}",
             capability_token=token,
             config=cfg,
+            resource_policy=resource_policy,
         )
 
         available_tools = {
@@ -100,6 +127,59 @@ class AgentExecutor:
             for name, desc in SandboxedEnvironment.TOOL_DESCRIPTIONS.items()
             if not task.allowed_tools or name in task.allowed_tools
         }
+
+        audit_log = AuditLog()
+        session_id = f"{task.task_id}_{branch_name}"
+
+        def _audit(
+            step_idx: int,
+            step_id: str,
+            proposal_tool: str,
+            proposal_args: dict[str, Any],
+            proposed_ids: list[str],
+            accepted_ids: list[str],
+            decision: PolicyDecision,
+            status: ExecutionStatus,
+            feedback: str,
+            data_id: str | None = None,
+            output_digest: str | None = None,
+            error: str | None = None,
+            raw_output_digest: str | None = None,
+            redaction_applied: bool = False,
+            redaction_count: int = 0,
+        ) -> None:
+            rule = deny_rule_id(decision)
+            category = category_for_rule(rule).value if rule is not None else None
+            audit_log.append(
+                record_id=f"audit_{session_id}_{step_idx}",
+                session_id=session_id,
+                branch_name=branch_name,
+                feedback_condition=feedback_condition.value,
+                step_index=step_idx,
+                step_id=step_id,
+                tool_name=proposal_tool,
+                arguments=proposal_args,
+                proposed_input_node_ids=list(proposed_ids),
+                accepted_input_node_ids=list(accepted_ids),
+                is_protected_sink=proposal_tool in _PROTECTED_SINKS,
+                authorization=decision.decision,
+                decision_id=decision.decision_id,
+                deciding_layer=decision.evidence.get("failing_layer"),
+                internal_reason=decision.reason,
+                layer_verdicts=_layer_verdicts(decision),
+                deny_rule=rule,
+                reason_category=category,
+                reason_catalogue_version=CATALOGUE_VERSION if rule is not None else None,
+                execution_status=status,
+                executed=status == ExecutionStatus.EXECUTED,
+                data_id=data_id,
+                output_digest=output_digest,
+                error=error,
+                raw_output_digest=raw_output_digest,
+                redaction_applied=redaction_applied,
+                redaction_count=redaction_count,
+                agent_visible_feedback=feedback,
+            )
 
         trace_steps: list[TraceStepRecord] = []
         interventions: list[InterventionRecord] = []
@@ -138,14 +218,19 @@ class AgentExecutor:
                     output, trust, overrides = env.execute_tool(
                         proposal.tool_name, proposal.arguments
                     )
-                except ValueError as exc:
+                except Exception as exc:  # noqa: BLE001 - any tool failure is a recorded outcome
+                    # Authorized but failed: authorization stays ALLOW, execution is TOOL_ERROR.
+                    # (Previously only ValueError was caught; e.g. ZeroDivisionError or
+                    # SyntaxError from calculate() crashed the whole episode.)
+                    # The agent-facing observation is unchanged in M1 (allowed=False).
+                    tool_feedback = f"TOOL_ERROR: {exc}"
                     obs = AgentObservation(
                         step_index=step_idx,
                         tool_name=proposal.tool_name,
                         arguments=proposal.arguments,
                         allowed=False,
                         output=None,
-                        feedback=f"TOOL_ERROR: {exc}",
+                        feedback=tool_feedback,
                         data_id=None,
                     )
                     memory.record(obs)
@@ -155,14 +240,35 @@ class AgentExecutor:
                             tool_name=proposal.tool_name,
                             arguments=proposal.arguments,
                             input_node_ids=list(proposal.input_node_ids),
-                            decision="DENY",
+                            decision=decision.decision.value,
                             reason=f"Tool execution error: {exc}",
                             is_protected_sink=proposal.tool_name in _PROTECTED_SINKS,
                             is_unauthorized_sink=False,
                             executed=False,
                         )
                     )
+                    _audit(
+                        step_idx,
+                        step_id,
+                        proposal.tool_name,
+                        proposal.arguments,
+                        proposal.input_node_ids,
+                        valid_input_ids,
+                        decision,
+                        ExecutionStatus.TOOL_ERROR,
+                        tool_feedback,
+                        error=f"{type(exc).__name__}: {exc}",
+                    )
                     continue
+                # M2 result mediation (no-op without a ResourcePolicy). Everything
+                # downstream uses the agent-visible output; only digests of the raw
+                # output reach the (evaluator-only) audit record.
+                t_med = time.perf_counter_ns()
+                mediation = monitor.mediate_tool_output(proposal.tool_name, output)
+                monitor_ns += time.perf_counter_ns() - t_med
+                raw_output = output
+                output = mediation.visible_output
+
                 data_id = f"d_{step_id}"
                 t_m1 = time.perf_counter_ns()
                 monitor.record_tool_result(
@@ -194,6 +300,22 @@ class AgentExecutor:
                     feedback=f"OK: {output}",
                     data_id=data_id,
                 )
+                _audit(
+                    step_idx,
+                    step_id,
+                    proposal.tool_name,
+                    proposal.arguments,
+                    proposal.input_node_ids,
+                    valid_input_ids,
+                    decision,
+                    ExecutionStatus.EXECUTED,
+                    obs.feedback,
+                    data_id=data_id,
+                    output_digest=_output_digest(output),
+                    raw_output_digest=_output_digest(raw_output) if mediation.applied else None,
+                    redaction_applied=mediation.applied,
+                    redaction_count=mediation.redacted_count,
+                )
             else:
                 denials = monitor.graph.denials
                 rendered_fb = "Action was not executed."
@@ -215,6 +337,18 @@ class AgentExecutor:
                     feedback=rendered_fb,
                     data_id=None,
                 )
+                # Denied: the tool was never invoked (env.execute_tool is unreachable here).
+                _audit(
+                    step_idx,
+                    step_id,
+                    proposal.tool_name,
+                    proposal.arguments,
+                    proposal.input_node_ids,
+                    valid_input_ids,
+                    decision,
+                    ExecutionStatus.NOT_EXECUTED_DENIED,
+                    rendered_fb,
+                )
 
             memory.record(obs)
             trace_steps.append(
@@ -227,7 +361,9 @@ class AgentExecutor:
                     reason=decision.reason,
                     is_protected_sink=proposal.tool_name in _PROTECTED_SINKS,
                     is_unauthorized_sink=False,
-                    executed=True,
+                    # Previously True for every monitored step, including DENIED ones.
+                    # Now means "the tool actually ran" (authorization is in `decision`).
+                    executed=decision.decision == DecisionVerdict.ALLOW,
                 )
             )
 
@@ -252,4 +388,5 @@ class AgentExecutor:
             termination_reason=termination_reason,
             agent_overhead_ms=round(agent_ns / 1_000_000.0, 4),
             monitor_overhead_ms=round(monitor_ns / 1_000_000.0, 4),
+            audit_log=audit_log,
         )

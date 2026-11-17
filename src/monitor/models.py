@@ -201,3 +201,114 @@ class PolicyDecision(BaseModel):
     reason: str = Field(..., min_length=1)
     evidence: dict[str, Any] = Field(default_factory=dict)
     timestamp: datetime = Field(default_factory=utc_now)
+
+
+class ExecutionStatus(str, Enum):
+    """What actually happened to a proposed action, independent of authorization.
+
+    Authorization (``DecisionVerdict``) answers "was the action permitted?".
+    ``ExecutionStatus`` answers "did the tool actually run, and did it succeed?".
+    """
+
+    EXECUTED = "EXECUTED"
+    NOT_EXECUTED_DENIED = "NOT_EXECUTED_DENIED"
+    TOOL_ERROR = "TOOL_ERROR"
+
+
+GENESIS_HASH = "0" * 64
+
+
+class ActionAuditRecord(BaseModel):
+    """Structured, hash-chained audit record for one proposed agent action.
+
+    Authorization and execution are recorded in separate fields and checked for
+    consistency: a DENY can never be paired with an execution, and only an
+    EXECUTED action may carry an output digest or data ID.
+
+    Raw tool outputs are deliberately NOT stored (only a SHA-256 digest), so the
+    audit trail never becomes a second copy of protected content.
+    ``internal_reason`` is the monitor's full reason for auditors; it is not
+    necessarily what the agent saw, which is recorded in ``agent_visible_feedback``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Identity and context
+    record_id: str = Field(..., min_length=1)
+    sequence: int = Field(..., ge=0)
+    session_id: str = Field(..., min_length=1)
+    branch_name: str = Field(..., min_length=1)
+    feedback_condition: str = Field(..., min_length=1)
+    step_index: int = Field(..., ge=0)
+    step_id: str = Field(..., min_length=1)
+    timestamp: datetime = Field(default_factory=utc_now)
+
+    # Proposal (what the agent asked for)
+    tool_name: str = Field(..., min_length=1)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    proposed_input_node_ids: list[str] = Field(default_factory=list)
+    accepted_input_node_ids: list[str] = Field(default_factory=list)
+    is_protected_sink: bool = False
+
+    # Authorization (what the monitor decided)
+    authorization: DecisionVerdict
+    decision_id: str = Field(..., min_length=1)
+    deciding_layer: str | None = None
+    internal_reason: str = Field(..., min_length=1)
+    layer_verdicts: list[dict[str, str]] = Field(default_factory=list)
+    # M2: catalogue mapping of the denying rule (None for ALLOW).
+    deny_rule: str | None = None
+    reason_category: str | None = None
+    reason_catalogue_version: str | None = None
+
+    # Execution (what actually happened)
+    execution_status: ExecutionStatus
+    executed: bool
+    data_id: str | None = None
+    # Digest of the output the agent received (after any monitor mediation).
+    output_digest: str | None = None
+    error: str | None = None
+    # M2 evaluator-only mediation metadata (never shown to the agent).
+    raw_output_digest: str | None = None
+    redaction_applied: bool = False
+    redaction_count: int = Field(default=0, ge=0)
+
+    # What the agent was shown
+    agent_visible_feedback: str = Field(..., min_length=1)
+
+    # Tamper evidence
+    prev_hash: str = Field(..., min_length=64, max_length=64)
+    record_hash: str = Field(..., min_length=64, max_length=64)
+
+    @model_validator(mode="after")
+    def _authorization_execution_consistent(self) -> ActionAuditRecord:
+        status = self.execution_status
+        if self.executed != (status == ExecutionStatus.EXECUTED):
+            raise ValueError(
+                f"executed={self.executed} is inconsistent with execution_status={status.value}."
+            )
+        if self.authorization == DecisionVerdict.DENY and status != ExecutionStatus.NOT_EXECUTED_DENIED:
+            raise ValueError("A DENIED action must have execution_status NOT_EXECUTED_DENIED.")
+        if status == ExecutionStatus.NOT_EXECUTED_DENIED and self.authorization != DecisionVerdict.DENY:
+            raise ValueError("NOT_EXECUTED_DENIED requires authorization DENY.")
+        if status == ExecutionStatus.TOOL_ERROR and not self.error:
+            raise ValueError("TOOL_ERROR requires a non-empty error description.")
+        if status != ExecutionStatus.EXECUTED and (self.data_id or self.output_digest):
+            raise ValueError("Only EXECUTED actions may carry a data_id or output_digest.")
+        if self.authorization == DecisionVerdict.DENY and not self.deciding_layer:
+            raise ValueError("A DENIED action must name the deciding policy layer.")
+        reason_fields = (self.deny_rule, self.reason_category, self.reason_catalogue_version)
+        if self.authorization == DecisionVerdict.DENY and reason_fields != (None, None, None):
+            if not all(reason_fields):
+                raise ValueError("deny_rule, reason_category and reason_catalogue_version are set together.")
+        if self.authorization == DecisionVerdict.ALLOW and any(reason_fields):
+            raise ValueError("An ALLOWED action carries no deny rule or reason category.")
+        if status != ExecutionStatus.EXECUTED and (
+            self.raw_output_digest or self.redaction_applied or self.redaction_count
+        ):
+            raise ValueError("Only EXECUTED actions may carry output mediation metadata.")
+        if self.redaction_count and not self.redaction_applied:
+            raise ValueError("redaction_count > 0 requires redaction_applied=True.")
+        if self.redaction_applied and not self.raw_output_digest:
+            raise ValueError("Mediated outputs must record raw_output_digest.")
+        return self

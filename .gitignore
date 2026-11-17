@@ -32,3 +32,6 @@ Thumbs.db
 *.log
 results/*.tmp
 results/raw_traces/
+
+# Live agent workspace (uploads, task outputs, audit logs)
+.live_workspace/
