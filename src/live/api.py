@@ -9,7 +9,7 @@ Endpoints
   POST /api/tasks                      {"instruction", "file_ids", "model"?} -> task id
   GET  /api/tasks/{task_id}            task snapshot
   GET  /api/tasks/{task_id}/events     Server-Sent Events stream of real backend events
-  POST /api/tasks/{task_id}/approve    {"approve": true|false} for a pending sensitive action
+  POST /api/tasks/{task_id}/approve    {"approve", "approval_id", "action_digest"} for the pending action
 """
 
 from __future__ import annotations
@@ -38,7 +38,13 @@ class TaskIn(BaseModel):
 
 
 class ApproveIn(BaseModel):
+    """A decision is bound to one pending action: its approval id and the SHA-256 of the
+    exact tool call shown to the reviewer (both from the approval_required event)."""
+
+    model_config = {"extra": "forbid"}
     approve: bool
+    approval_id: str = Field(..., pattern=r"^a_[0-9a-f]{16}$")
+    action_digest: str = Field(..., pattern=r"^[0-9a-f]{64}$")
 
 
 def create_app(manager: TaskManager | None = None) -> FastAPI:
@@ -129,10 +135,10 @@ def create_app(manager: TaskManager | None = None) -> FastAPI:
     @app.post("/api/tasks/{task_id}/approve")
     def approve(task_id: str, body: ApproveIn) -> dict[str, Any]:
         try:
-            task = mgr.decide(task_id, body.approve)
+            task = mgr.decide(task_id, body.approve, body.approval_id, body.action_digest)
         except UploadRejected as exc:
             raise fail(exc) from exc
-        return {"task_id": task.id, "approve": body.approve}
+        return {"task_id": task.id, "approve": body.approve, "approval_id": body.approval_id}
 
     @app.get("/api/tasks/{task_id}/events")
     async def events(task_id: str, request: Request) -> StreamingResponse:

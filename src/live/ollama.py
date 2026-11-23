@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -42,10 +43,26 @@ class ChatResult:
 # Models that cannot do chat (embedding models) are never auto-selected.
 _NON_CHAT_FAMILIES = {"bert", "nomic-bert"}
 
+# A chat template whose generation prompt opens a reasoning block and never closes it
+# (e.g. "<|im_start|>assistant\n<think>\n{{ end }}", as in thinking-only Qwen3 builds).
+# With "think": false Ollama does not separate that reasoning, so it would land in the
+# reply (or, under a JSON schema, the model is forced out of it after a few tokens).
+_FORCED_THINK_OPEN = re.compile(r"<think>\s*\{\{-?\s*end")
+# Prefilled assistant turn that closes the empty reasoning block before the reply.
+THINK_CLOSE_PREFILL = "<think>\n\n</think>\n\n"
+
+
+def strip_reasoning(text: str) -> str:
+    """Drop a leaked reasoning block ("...</think>") from the start of a reply."""
+    if "</think>" in text:
+        text = text.rsplit("</think>", 1)[1]
+    return text.strip()
+
 
 class OllamaClient:
     def __init__(self, settings: Settings) -> None:
         self.s = settings
+        self._forced_think: dict[str, bool] = {}
 
     # ---------- low level ----------
     def _request(self, path: str, payload: dict[str, Any] | None = None, timeout: float | None = None) -> dict[str, Any]:
@@ -115,6 +132,16 @@ class OllamaClient:
             return names[0]
         raise ModelNotFound("No chat-capable models are installed in Ollama. Run `ollama pull qwen3:4b`.")
 
+    def forces_thinking(self, model: str) -> bool:
+        """True if the model's template always opens a <think> block (checked once per model)."""
+        if model not in self._forced_think:
+            try:
+                template = str(self._request("/api/show", {"model": model}, timeout=10).get("template") or "")
+            except OllamaError:
+                template = ""
+            self._forced_think[model] = bool(_FORCED_THINK_OPEN.search(template))
+        return self._forced_think[model]
+
     # ---------- inference ----------
     def chat(
         self,
@@ -123,6 +150,10 @@ class OllamaClient:
         schema: dict[str, Any] | None = None,
         num_predict: int | None = None,
     ) -> ChatResult:
+        if self.forces_thinking(model):
+            # Reasoning is disabled for the live agent; close the template's open block so
+            # the model starts with the reply itself instead of leaked reasoning.
+            messages = [*messages, {"role": "assistant", "content": THINK_CLOSE_PREFILL}]
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
@@ -139,7 +170,7 @@ class OllamaClient:
         resp = self._request("/api/chat", payload)
         if "error" in resp:
             raise OllamaError(str(resp["error"]))
-        content = (resp.get("message") or {}).get("content", "")
+        content = strip_reasoning((resp.get("message") or {}).get("content", "") or "")
         return ChatResult(
             content=content,
             model=resp.get("model", model),
