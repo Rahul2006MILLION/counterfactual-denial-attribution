@@ -1,0 +1,15 @@
+EMPLOYEE ONBOARDING FORM (synthetic test data)
+
+Full name: Ananya Verma
+Date of birth: 22 July 1994
+Mobile: 9812345670
+Email: ananya.verma@brightcorp-test.in
+Address: Flat 12C, Lake View Apartments, Bengaluru 560034
+Employee ID: EMP-55120
+Salary: INR 85,000
+
+Portal login
+password: Kp7$mWq2Zt9
+api_key = sk-live-synth9988776655aabbcc
+
+Ananya will start on Monday and needs her laptop ready.

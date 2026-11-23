@@ -45,6 +45,12 @@ class Settings:
     # for instructions and the answer).
     chunk_chars: int = field(default_factory=lambda: _int("CDA_CHUNK_CHARS", 6000))
     max_chunks: int = field(default_factory=lambda: _int("CDA_MAX_CHUNKS", 8))
+    # Contextual (AI) evaluation: overlapping chunks cover the whole document up to this many chunks.
+    max_eval_chunks: int = field(default_factory=lambda: _int("CDA_MAX_EVAL_CHUNKS", 24))
+    eval_chunk_overlap: int = field(default_factory=lambda: _int("CDA_EVAL_CHUNK_OVERLAP", 400))
+    # Hide values flagged by the deterministic detector from the model (summary, AI review, planner,
+    # answer and search/date tools). Set CDA_REDACT_FOR_MODEL=0 to let the model read the raw text.
+    redact_for_model: bool = field(default_factory=lambda: os.environ.get("CDA_REDACT_FOR_MODEL", "1").strip().lower() not in ("0", "false", "no", "off"))
     max_plan_steps: int = field(default_factory=lambda: _int("CDA_MAX_PLAN_STEPS", 4))
     approval_timeout: float = field(default_factory=lambda: _float("CDA_APPROVAL_TIMEOUT", 600.0))
 

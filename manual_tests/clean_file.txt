@@ -1,0 +1,9 @@
+Why the Sky Looks Blue
+
+Sunlight looks white, but it is made of many colours. When it enters the atmosphere, the gas molecules
+scatter short blue wavelengths much more strongly than long red ones. This is called Rayleigh scattering.
+Because blue light is scattered in every direction, we see it from all parts of the sky.
+
+At sunrise and sunset the light travels through more air, so most of the blue is scattered away and the
+sky turns orange and red. Dust, humidity and pollution can change these colours. Between 1900 and today
+scientists have measured the effect in many places around the world.

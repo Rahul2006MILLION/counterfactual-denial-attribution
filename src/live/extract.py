@@ -110,6 +110,15 @@ def _docx(path: Path) -> Extracted:
         raise ExtractionError("Not a valid DOCX file.") from exc
     root = _xml(xml)
     paras = []
+    # Headers, footers, footnotes, endnotes and comments can hold names, numbers and notes too.
+    extra_roots = []
+    try:
+        with zipfile.ZipFile(path) as zf2:
+            for name in sorted(zf2.namelist()):
+                if re.fullmatch(r"word/(?:header\d*|footer\d*|footnotes|endnotes|comments)\.xml", name):
+                    extra_roots.append((name, _xml(_safe_zip_read(zf2, name))))
+    except zipfile.BadZipFile as exc:  # pragma: no cover - already validated above
+        raise ExtractionError("Not a valid DOCX file.") from exc
     for p in root.iter(f"{W_NS}p"):
         runs = []
         for node in p.iter():
@@ -120,6 +129,10 @@ def _docx(path: Path) -> Extracted:
             elif node.tag in (f"{W_NS}br", f"{W_NS}cr"):
                 runs.append("\n")
         paras.append("".join(runs))
+    for name, extra in extra_roots:
+        extra_text = "\n".join("".join(t.text or "" for t in p.iter(f"{W_NS}t")) for p in extra.iter(f"{W_NS}p")).strip()
+        if extra_text:
+            paras.append(f"[{name.split('/')[-1]}]\n{extra_text}")
     return Extracted(text="\n".join(paras).strip(), kind="docx")
 
 
@@ -243,3 +256,27 @@ def chunk_text(text: str, size: int) -> list[str]:
     if buf:
         chunks.append("".join(buf))
     return chunks
+
+
+def chunk_with_overlap(text: str, size: int, overlap: int) -> list[str]:
+    """Chunks of at most `size` characters where each chunk repeats the last `overlap`
+    characters of the previous one, so a value or sentence that straddles a boundary is
+    complete in at least one chunk. Never drops text."""
+    if size <= 0:
+        raise ValueError("size must be positive")
+    overlap = max(0, min(overlap, size // 2))
+    if len(text) <= size:
+        return [text]
+    step = size - overlap
+    out, pos = [], 0
+    while pos < len(text):
+        end = min(len(text), pos + size)
+        if end < len(text):  # prefer to end on a line break within the last 20% of the window
+            cut = text.rfind("\n", pos + int(size * 0.8), end)
+            if cut > pos:
+                end = cut + 1
+        out.append(text[pos:end])
+        if end >= len(text):
+            break
+        pos = max(pos + 1, end - overlap)
+    return out
