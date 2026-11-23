@@ -1,0 +1,10 @@
+CUSTOMER ONBOARDING RECORD (synthetic test data)
+
+Full name: Priya Nair
+Date of birth: 14 March 1991
+Mobile: 9876543210
+Email: priya.nair@brightmail-test.in
+Address: Flat 4B, Green Park Apartments, Pune 411001
+Employee ID: EMP-40917
+
+Priya asked us to update her delivery preferences next week.

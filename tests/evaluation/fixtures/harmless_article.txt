@@ -1,0 +1,10 @@
+How Photosynthesis Works
+
+Photosynthesis is the process by which plants, algae and some bacteria convert light energy into
+chemical energy. Chlorophyll in the chloroplasts absorbs sunlight, mostly in the blue and red
+wavelengths. The plant uses that energy to turn carbon dioxide and water into glucose and oxygen.
+
+The process has two stages. In the light-dependent reactions, energy from sunlight is captured and
+stored as ATP and NADPH. In the Calvin cycle, that stored energy is used to build sugar molecules.
+Factors such as light intensity, temperature and the concentration of carbon dioxide change how
+quickly the process runs. Between 1950 and 2020 researchers refined these measurements considerably.

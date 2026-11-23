@@ -8,7 +8,8 @@ Order of checks (the first failure blocks the call):
                     provenance (untrusted data cannot reach a protected sink), L3
                     schema-derived rules and L4 capability token (tool allowlist and
                     per-tool budgets).
-  3. Approval     - tools marked sensitive (writing files) pause for a human decision.
+  3. Approval     - tools marked sensitive (writing files, external disclosure such as
+                    send_email) pause for a human decision bound to the exact action.
 
 Every outcome is appended to the existing hash-chained AuditLog (ActionAuditRecord).
 """
@@ -87,7 +88,7 @@ class SecurityGateway:
         self.audit = AuditLog()
 
     # ---------------------------------------------------------------
-    def evaluate(self, step_id: str, tool: str, raw_args: dict[str, Any], input_node_ids: list[str] | None = None) -> GateDecision:
+    def evaluate(self, step_id: str, tool: str, raw_args: dict[str, Any], input_node_ids: list[str] | None = None, user_authorized: bool = True) -> GateDecision:
         spec = REGISTRY.get(tool)
         validated = None
         if spec is not None:
@@ -124,13 +125,26 @@ class SecurityGateway:
                 decision,
                 layers,
             )
-        # 3. Human approval for sensitive tools
+
+        # 3. User authorization check for protected sinks
+        if tool in ("write_report", "send_email") and not user_authorized:
+            return GateDecision(
+                Verdict.BLOCK,
+                "LIVE:Policy",
+                "LIVE-AUTH",
+                f"Action '{tool}' was not affirmatively authorized by the user.",
+                validated,
+                decision,
+                layers,
+            )
+
+        # 4. Human approval for sensitive tools
         if spec is not None and spec.requires_approval:
             return GateDecision(
                 Verdict.REQUIRE_APPROVAL,
                 "LIVE:HumanApproval",
                 None,
-                f"'{tool}' writes a file and requires explicit human approval. The monitor allowed it.",
+                spec.approval_reason or f"'{tool}' writes a file and requires explicit human approval. The monitor allowed it.",
                 validated,
                 decision,
                 layers,

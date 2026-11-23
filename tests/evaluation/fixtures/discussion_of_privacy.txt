@@ -1,0 +1,12 @@
+Privacy and Security Basics (training material)
+
+Personally identifiable information (PII) includes things like names, phone numbers, home addresses
+and government identifiers. Organisations must protect it and tell people how it is used.
+
+Passwords should be long and unique. Never store your password in plain text; use a password manager.
+Weak examples such as password=hunter2 are guessed within seconds. API keys and tokens must be kept
+out of source control, and a bank or card number should never be sent by email.
+
+An email address has the format name@example.com. When you document an API, show the header as
+Authorization: Bearer <your-token> and set api_key = YOUR_API_KEY_HERE in the sample config.
+Medical history of a patient is special category data under most privacy laws.

@@ -10,6 +10,8 @@ Layout (all under Settings.workspace, which is gitignored):
 
 from __future__ import annotations
 
+import logging
+
 import hashlib
 import json
 import re
@@ -39,6 +41,9 @@ FILE_ID_RE = re.compile(r"^f_[0-9a-f]{16}$")
 TASK_ID_RE = re.compile(r"^t_[0-9a-f]{16}$")
 
 
+log = logging.getLogger(__name__)
+
+
 class UploadRejected(ValueError):
     def __init__(self, message: str, status: int = 400) -> None:
         super().__init__(message)
@@ -53,6 +58,7 @@ class StoredFile:
     size: int
     sha256: str
     kind: str  # "pdf" | "docx" | "xlsx" | "csv" | "code" | "text" | "json"
+    assessment: dict | None = None
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -125,7 +131,48 @@ class Workspace:
             fh.write(data)
         meta = StoredFile(file_id, name, ext, len(data), hashlib.sha256(data).hexdigest(), kind_for(ext))
         (folder / "meta.json").write_text(json.dumps(meta.to_dict()), encoding="utf-8")
+        try:
+            ass = self.get_or_create_assessment(file_id)
+        except Exception as exc:  # noqa: BLE001 - never leave the upload without a visible verdict
+            log.exception("assessment crashed for %s", file_id)
+            from src.live.sensitive import assess_document
+
+            ass = assess_document("D1", name, meta.sha256, text=None, error=f"Assessment crashed: {type(exc).__name__}: {exc}")
+        meta.assessment = ass.to_dict()
+        (folder / "meta.json").write_text(json.dumps(meta.to_dict()), encoding="utf-8")
         return meta
+
+    def get_or_create_assessment(self, file_id: str, doc_id: str = "D1"):
+        """Deterministic assessment for an uploaded file, cached per (content hash, engine version).
+        A cache written by an older rule set is ignored, so detector fixes always take effect."""
+        from src.live.extract import extract, ExtractionError
+        from src.live.sensitive import ENGINE_VERSION, DocumentAssessment, assess_document
+
+        meta, path = self.get_file(file_id)
+        folder = confine(self.root, "uploads", file_id)
+        ass_path = folder / "assessment.json"
+        if ass_path.is_file():
+            try:
+                cached = json.loads(ass_path.read_text(encoding="utf-8"))
+                if cached.get("content_hash") == meta.sha256 and cached.get("engine_version") == ENGINE_VERSION:
+                    return DocumentAssessment.from_dict(cached, doc_id=doc_id)
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                log.warning("discarding unreadable assessment cache for %s: %s", file_id, exc)
+
+        try:
+            extracted = extract(path, meta.ext, meta.kind)
+            ass = assess_document(doc_id, meta.name, meta.sha256, text=extracted.text, truncated=extracted.truncated, notes=extracted.notes)
+        except ExtractionError as exc:
+            ass = assess_document(doc_id, meta.name, meta.sha256, text=None, error=str(exc))
+        except Exception as exc:  # noqa: BLE001 - failure is recorded as NOT_EVALUABLE, not hidden
+            log.exception("assessment failed for %s", file_id)
+            ass = assess_document(doc_id, meta.name, meta.sha256, text=None, error=f"{type(exc).__name__}: {exc}")
+
+        try:
+            ass_path.write_text(json.dumps(ass.to_dict()), encoding="utf-8")
+        except OSError as exc:
+            log.warning("could not cache assessment for %s: %s", file_id, exc)
+        return ass
 
     def get_file(self, file_id: str) -> tuple[StoredFile, Path]:
         if not FILE_ID_RE.match(file_id or ""):
